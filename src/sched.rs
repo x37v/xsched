@@ -101,6 +101,10 @@ impl Sched {
         self.executor.run(frames, sample_rate);
     }
 
+    pub fn tick_next(&self) -> usize {
+        self.executor.tick_next()
+    }
+
     pub fn midi_queue(&self) -> MidiValueQueue {
         self.midi_queue.clone()
     }
