@@ -12,6 +12,7 @@ struct SchedProcessHandler {
 
 impl jack::ProcessHandler for SchedProcessHandler {
     fn process(&mut self, client: &jack::Client, ps: &jack::ProcessScope) -> jack::Control {
+        //get 'now' at the start of this frame.
         let now = self.sched.tick_next();
         self.sched
             .run(ps.n_frames() as usize, client.sample_rate() as usize);
@@ -21,9 +22,12 @@ impl jack::ProcessHandler for SchedProcessHandler {
                 let _ = midi_out.write(&jack::RawMidi { time: tick, bytes });
             };
             let mut midi_queue = self.midi_queue.lock();
+
+            //get all midi events that should be scheduled within this frame
             let next = self.sched.tick_next();
             while let Some((t, midi)) = midi_queue.dequeue_lt(next) {
-                let tick = (if t < now { now } else { t } - now) as u32;
+                //compute the tick offset from the start of the frame
+                let tick = (std::cmp::max(t, now) - now) as u32;
                 let iter = &mut midi.iter();
                 match iter.len() {
                     3 => write_midi(
