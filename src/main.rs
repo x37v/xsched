@@ -1,3 +1,9 @@
+mod jack;
+mod sched;
+use crate::jack::Jack;
+use crate::sched::Sched;
+
 fn main() {
-    println!("Hello, world!");
+    let sched = Sched::new();
+    let jack = Jack::new(sched);
 }
