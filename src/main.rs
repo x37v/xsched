@@ -1,7 +1,5 @@
-mod jack;
-mod sched;
-use crate::jack::Jack;
-use crate::sched::Sched;
+use xsched::jack::Jack;
+use xsched::sched::Sched;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
