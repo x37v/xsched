@@ -1,5 +1,14 @@
 # xsched
 
+## Sources
+
+* jack
+  * midi
+  * transport
+  * audio (eventually)
+* osc
+
+
 ## OSC Namespace
 
 All prefixed with `/xsched`
@@ -41,3 +50,76 @@ All prefixed with `/xsched`
 /xsched/bindings/uuids/b907d0ee-8bea-4137-8a8e-2d49eff97b3a/type -> "value" "f64" "getset"
 /xsched/bindings/uuids/b907d0ee-8bea-4137-8a8e-2d49eff97b3a/value -> 131.0
 /xsched/bindings/uuids/96e3e763-23e7-49f6-b6d6-323d872f2383/type -> "value" "f64" 
+
+```
+
+`/xsched/bindings/available ->`
+```json
+{
+  adds: {
+    description: "saturating add of two values",
+    variants: [
+      {
+        name: "f64",
+        access: "get",
+        type: "f64",
+        params: {
+          left: {
+            type: "f64",
+            access: "get"
+          },
+          right: {
+            type: "f64",
+            access: "get"
+          }
+        }
+      },
+      {
+        name: "isize",
+        access: "get",
+        type: "isize",
+        params: {
+          left: {
+            type: "isize",
+            access: "get"
+          },
+          right: {
+            type: "isize",
+            access: "get"
+          }
+        }
+      },
+      {
+        name: "usize",
+        access: "get",
+        type: "usize",
+        params: {
+          left: {
+            type: "usize",
+            access: "get"
+          },
+          right: {
+            type: "usize",
+            access: "get"
+          }
+        }
+      },
+      {
+        name: "u8",
+        access: "get",
+        type: "u8",
+        params: {
+          left: {
+            type: "u8",
+            access: "get"
+          },
+          right: {
+            type: "u8",
+            access: "get"
+          }
+        }
+      }
+    ]
+  }
+}
+```
