@@ -103,25 +103,6 @@ where
     }
 }
 
-macro_rules! impl_get_set {
-    ($t:ty, $variant:ident, $name:ident) => {
-        paste::item! {
-            pub fn [<as_ $name _get>](&self) -> Option<Arc<dyn ParamBindingGet<$t>>> {
-                match self.as_get() {
-                    Some(Get::$variant(o)) => o.as_arc(),
-                    _ => None,
-                }
-            }
-            pub fn [<as_ $name _set>](&self) -> Option<Arc<dyn ParamBindingSet<$t>>> {
-                match self.as_set() {
-                    Some(Set::$variant(o)) => o.as_arc(),
-                    _ => None,
-                }
-            }
-        }
-    };
-}
-
 impl Binding {
     /// Create a new binding
     pub fn new(binding: Access, params: HashMap<String, ParamAccess>) -> Self {
@@ -142,38 +123,6 @@ impl Binding {
             Access::Get(_) => "get",
             Access::Set(_) => "set",
             Access::GetSet(_, _) => "getset",
-        }
-    }
-
-    ///Get the type name for the contained `Get` value, if there is one.
-    pub fn get_type_name(&self) -> Option<&str> {
-        if let Some(g) = self.as_get() {
-            Some(match g {
-                Get::Bool(_) => "bool",
-                Get::U8(_) => "u8",
-                Get::USize(_) => "usize",
-                Get::ISize(_) => "isize",
-                Get::Float(_) => "float",
-                Get::ClockData(_) => "clock_data",
-            })
-        } else {
-            None
-        }
-    }
-
-    ///Get the type name for the contained `Set` value, if there is one.
-    pub fn set_type_name(&self) -> Option<&str> {
-        if let Some(s) = self.as_set() {
-            Some(match s {
-                Set::Bool(_) => "bool",
-                Set::U8(_) => "u8",
-                Set::USize(_) => "usize",
-                Set::ISize(_) => "isize",
-                Set::Float(_) => "float",
-                Set::ClockData(_) => "clock_data",
-            })
-        } else {
-            None
         }
     }
 
@@ -228,29 +177,6 @@ impl Binding {
             Err(BindingError::KeyMissing)
         }
     }
-
-    fn as_get(&self) -> Option<&Get> {
-        match &self.binding {
-            Access::Get(m) => Some(m),
-            Access::Set(_) => None,
-            Access::GetSet(m, _) => Some(m),
-        }
-    }
-    fn as_set(&self) -> Option<&Set> {
-        match &self.binding {
-            Access::Get(_) => None,
-            Access::Set(m) => Some(m),
-            Access::GetSet(_, m) => Some(m),
-        }
-    }
-
-    //impl getter and setter for the given type, with the variant and the function name ident
-    impl_get_set!(bool, Bool, bool);
-    impl_get_set!(u8, U8, u8);
-    impl_get_set!(usize, USize, usize);
-    impl_get_set!(isize, ISize, isize);
-    impl_get_set!(Float, Float, float);
-    impl_get_set!(ClockData, ClockData, clock_data);
 }
 
 impl ParamGet {
