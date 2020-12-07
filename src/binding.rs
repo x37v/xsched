@@ -7,7 +7,7 @@ use sched::{
     Float,
 };
 use std::{
-    collections::HashMap,
+    collections::{hash_map::Keys, HashMap},
     sync::{Arc, Weak},
 };
 
@@ -124,6 +124,11 @@ impl Binding {
             Access::Set(_) => "set",
             Access::GetSet(_, _) => "getset",
         }
+    }
+
+    ///Get the param keys.
+    pub fn param_keys(&self) -> Keys<'_, String, ParamAccess> {
+        self.params.keys()
     }
 
     /// Get the access name for the parameter with `name`.
@@ -296,6 +301,12 @@ mod tests {
 
         assert_eq!(None, max.param_get_type_name("bill"));
         assert_eq!(None, max.param_set_type_name("bill"));
+
+        let keys: Vec<String> = max.param_keys().into_iter().map(|k| k.clone()).collect();
+
+        assert_eq!(2, keys.len());
+        assert!(keys.contains(&"left".to_string()));
+        assert!(keys.contains(&"right".to_string()));
 
         assert_eq!("get", max.access_name());
         assert_eq!(Some("usize"), max.get_type_name());
