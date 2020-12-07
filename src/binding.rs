@@ -320,6 +320,10 @@ mod tests {
             ))),
             map,
         );
+        assert_eq!("get", max.access_name());
+        assert_eq!(Some("usize"), max.get_type_name());
+        assert_eq!(None, max.set_type_name());
+
         let get_max = max.as_usize_get();
         assert!(max.as_bool_get().is_none());
         assert!(get_max.is_some());
