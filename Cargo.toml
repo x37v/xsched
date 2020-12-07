@@ -19,3 +19,6 @@ oscquery = { git = "https://github.com/x37v/oscquery-rs.git" }
 uuid = { version = "0.8.1", features = ["serde", "v4"] }
 ctrlc = "3.1.7"
 paste = "1.0.3"
+
+[build-dependencies]
+quote = "1.0.7"

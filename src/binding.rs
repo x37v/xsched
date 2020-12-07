@@ -11,12 +11,15 @@ use std::{
     sync::{Arc, Weak},
 };
 
+include!(concat!(env!("OUT_DIR"), "/binding.rs"));
+
 /// Strong, "owned", or weak, "unowned" bindings.
 pub enum Owner<T: ?Sized> {
     Owned(Arc<T>),
     Unowned(Weak<T>),
 }
 
+/// Get bindings.
 pub enum Get {
     Bool(Owner<dyn ParamBindingGet<bool>>),
     U8(Owner<dyn ParamBindingGet<u8>>),
@@ -26,6 +29,7 @@ pub enum Get {
     ClockData(Owner<dyn ParamBindingGet<ClockData>>),
 }
 
+/// Set bindings.
 pub enum Set {
     Bool(Owner<dyn ParamBindingSet<bool>>),
     U8(Owner<dyn ParamBindingSet<u8>>),
@@ -35,6 +39,7 @@ pub enum Set {
     ClockData(Owner<dyn ParamBindingSet<ClockData>>),
 }
 
+/// Parameters that you can get values from.
 pub enum ParamGet {
     Bool(Arc<BindingSwapGet<bool>>),
     U8(Arc<BindingSwapGet<u8>>),
@@ -44,6 +49,7 @@ pub enum ParamGet {
     ClockData(Arc<BindingSwapGet<ClockData>>),
 }
 
+/// Parameters that you can set to a value.
 pub enum ParamSet {
     Bool(Arc<BindingSwapSet<bool>>),
     U8(Arc<BindingSwapSet<u8>>),
@@ -53,18 +59,22 @@ pub enum ParamSet {
     ClockData(Arc<BindingSwapSet<ClockData>>),
 }
 
+/// Bindings with their access.
 pub enum Access {
     Get(Get),
     Set(Set),
     GetSet(Get, Set),
 }
 
+/// Parameters with their access.
 pub enum ParamAccess {
     Get(ParamGet),
     Set(ParamSet),
     GetSet(ParamGet, ParamSet),
 }
 
+/// Errors in binding parameters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BindingError {
     /// No parameter with the given name
     KeyMissing,
@@ -112,6 +122,52 @@ macro_rules! impl_get_set {
 }
 
 impl Binding {
+    /// Create a new binding
+    pub fn new(binding: Access, params: HashMap<String, ParamAccess>) -> Self {
+        Self { binding, params }
+    }
+
+    ///Get a `&str` representing the type of access: `"get", "set" or "getset"`
+    pub fn access_name(&self) -> &str {
+        match &self.binding {
+            Access::Get(_) => "get",
+            Access::Set(_) => "set",
+            Access::GetSet(_, _) => "getset",
+        }
+    }
+
+    ///Get the type name for the contained `Get` value, if there is one.
+    pub fn get_type_name(&self) -> Option<&str> {
+        if let Some(g) = self.as_get() {
+            Some(match g {
+                Get::Bool(_) => "bool",
+                Get::U8(_) => "u8",
+                Get::USize(_) => "usize",
+                Get::ISize(_) => "isize",
+                Get::Float(_) => "float",
+                Get::ClockData(_) => "clock_data",
+            })
+        } else {
+            None
+        }
+    }
+
+    ///Get the type name for the contained `Set` value, if there is one.
+    pub fn set_type_name(&self) -> Option<&str> {
+        if let Some(s) = self.as_set() {
+            Some(match s {
+                Set::Bool(_) => "bool",
+                Set::U8(_) => "u8",
+                Set::USize(_) => "usize",
+                Set::ISize(_) => "isize",
+                Set::Float(_) => "float",
+                Set::ClockData(_) => "clock_data",
+            })
+        } else {
+            None
+        }
+    }
+
     pub fn param_unbind(&mut self, name: &str) {
         if let Some(param) = self.params.get_mut(name) {
             match param {
@@ -124,20 +180,12 @@ impl Binding {
             }
         }
     }
+
+    ///Bind the parameter with the give `name` to the given `binding`.
+    ///
     pub fn param_bind(&mut self, name: &str, binding: &Self) -> Result<(), BindingError> {
         if let Some(param) = self.params.get_mut(name) {
-            match param {
-                ParamAccess::Get(g) => {
-                    //XXX
-                }
-                ParamAccess::Set(s) => {
-                    //XXX
-                }
-                ParamAccess::GetSet(g, s) => {
-                    //XXX
-                }
-            }
-            Ok(())
+            param.bind(binding)
         } else {
             Err(BindingError::KeyMissing)
         }
@@ -158,53 +206,16 @@ impl Binding {
         }
     }
 
-    /*
-    pub fn as_bool_get(&self) -> Option<Arc<dyn ParamBindingGet<bool>>> {
-        match self.as_get() {
-            Some(Get::Bool(o)) => o.as_arc(),
-            _ => None,
-        }
-    }
-    pub fn as_bool_set(&self) -> Option<Arc<dyn ParamBindingSet<bool>>> {
-        match self.as_set() {
-            Some(Set::Bool(o)) => o.as_arc(),
-            _ => None,
-        }
-    }
-    */
+    //impl getter and setter for the given type, with the variant and the function name ident
     impl_get_set!(bool, Bool, bool);
-    impl_get_set!(u8, U8, bool);
+    impl_get_set!(u8, U8, u8);
     impl_get_set!(usize, USize, usize);
-    impl_get_set!(isize, ISize, usize);
+    impl_get_set!(isize, ISize, isize);
     impl_get_set!(Float, Float, float);
     impl_get_set!(ClockData, ClockData, clock_data);
 }
 
 impl ParamGet {
-    pub fn bind(&mut self, binding: &ParamAccess) -> Result<(), BindingError> {
-        match self {
-            Self::Bool(b) => {
-                //XXX
-            }
-            Self::U8(b) => {
-                //XXX
-            }
-            Self::USize(b) => {
-                //XXX
-            }
-            Self::ISize(b) => {
-                //XXX
-            }
-            Self::Float(b) => {
-                //XXX
-            }
-            Self::ClockData(b) => {
-                //XXX
-            }
-        };
-        Ok(())
-    }
-
     //TODO transform and return output?
     pub fn unbind(&mut self) {
         match self {
@@ -231,30 +242,6 @@ impl ParamGet {
 }
 
 impl ParamSet {
-    pub fn bind(&mut self, binding: &ParamAccess) -> Result<(), BindingError> {
-        match self {
-            Self::Bool(b) => {
-                //XXX
-            }
-            Self::U8(b) => {
-                //XXX
-            }
-            Self::USize(b) => {
-                //XXX
-            }
-            Self::ISize(b) => {
-                //XXX
-            }
-            Self::Float(b) => {
-                //XXX
-            }
-            Self::ClockData(b) => {
-                //XXX
-            }
-        };
-        Ok(())
-    }
-
     //TODO transform and return output?
     pub fn unbind(&mut self) {
         match self {
@@ -277,5 +264,37 @@ impl ParamSet {
                 b.unbind();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    #[test]
+    fn can_create() {
+        let mut g = Binding::new(
+            Access::Get(Get::USize(Owner::Owned(Arc::new(AtomicUsize::new(0)) as _))),
+            HashMap::new(),
+        );
+        assert_eq!("get", g.access_name());
+        assert_eq!(Some("usize"), g.get_type_name());
+        assert_eq!(None, g.set_type_name());
+
+        let a = Arc::new(AtomicUsize::new(0));
+        let mut s = Binding::new(
+            Access::GetSet(
+                Get::USize(Owner::Owned(a.clone() as _)),
+                Set::USize(Owner::Owned(a.clone() as _)),
+            ),
+            HashMap::new(),
+        );
+        assert_eq!("getset", s.access_name());
+        assert_eq!(Some("usize"), s.get_type_name());
+        assert_eq!(Some("usize"), s.set_type_name());
+
+        assert_eq!(Err(BindingError::KeyMissing), s.param_bind(&"soda", &g));
+        assert_eq!(Err(BindingError::KeyMissing), g.param_bind(&"foo", &s));
     }
 }
