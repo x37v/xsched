@@ -87,6 +87,7 @@ pub enum BindingError {
 pub struct Binding {
     binding: Access,
     params: HashMap<String, ParamAccess>,
+    uuid: uuid::Uuid,
 }
 
 impl<T> Owner<T>
@@ -124,7 +125,15 @@ macro_rules! impl_get_set {
 impl Binding {
     /// Create a new binding
     pub fn new(binding: Access, params: HashMap<String, ParamAccess>) -> Self {
-        Self { binding, params }
+        Self {
+            binding,
+            params,
+            uuid: uuid::Uuid::new_v4(),
+        }
+    }
+
+    pub fn uuid(&self) -> uuid::Uuid {
+        self.uuid
     }
 
     ///Get a `&str` representing the type of access: `"get", "set" or "getset"`
@@ -168,6 +177,35 @@ impl Binding {
         }
     }
 
+    /// Get the access name for the parameter with `name`.
+    pub fn param_access_name(&self, name: &str) -> Option<&str> {
+        if let Some(param) = self.params.get(name) {
+            Some(param.access_name())
+        } else {
+            None
+        }
+    }
+
+    /// Get the 'get' type name for the parameter with `name`, if there is a param and if it has a
+    /// get.
+    pub fn param_get_type_name(&self, name: &str) -> Option<&str> {
+        if let Some(param) = self.params.get(name) {
+            param.get_type_name()
+        } else {
+            None
+        }
+    }
+
+    /// Get the 'set' type name for the parameter with `name`, if there is a param and if it has a
+    /// set.
+    pub fn param_set_type_name(&self, name: &str) -> Option<&str> {
+        if let Some(param) = self.params.get(name) {
+            param.set_type_name()
+        } else {
+            None
+        }
+    }
+
     pub fn param_unbind(&mut self, name: &str) {
         if let Some(param) = self.params.get_mut(name) {
             match param {
@@ -183,9 +221,9 @@ impl Binding {
 
     ///Bind the parameter with the give `name` to the given `binding`.
     ///
-    pub fn param_bind(&mut self, name: &str, binding: &Self) -> Result<(), BindingError> {
+    pub fn param_try_bind(&mut self, name: &str, binding: &Self) -> Result<(), BindingError> {
         if let Some(param) = self.params.get_mut(name) {
-            param.bind(binding)
+            param.try_bind(binding)
         } else {
             Err(BindingError::KeyMissing)
         }
@@ -296,8 +334,8 @@ mod tests {
         assert_eq!(Some("usize"), s.get_type_name());
         assert_eq!(Some("usize"), s.set_type_name());
 
-        assert_eq!(Err(BindingError::KeyMissing), s.param_bind(&"soda", &g));
-        assert_eq!(Err(BindingError::KeyMissing), g.param_bind(&"foo", &s));
+        assert_eq!(Err(BindingError::KeyMissing), s.param_try_bind(&"soda", &g));
+        assert_eq!(Err(BindingError::KeyMissing), g.param_try_bind(&"foo", &s));
 
         let lswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
         let rswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
@@ -320,6 +358,19 @@ mod tests {
             ))),
             map,
         );
+
+        assert_eq!(Some("get"), max.param_access_name("left"));
+        assert_eq!(Some("get"), max.param_access_name("right"));
+        assert_eq!(None, max.param_access_name("bill"));
+
+        assert_eq!(Some("usize"), max.param_get_type_name("left"));
+        assert_eq!(Some("usize"), max.param_get_type_name("right"));
+        assert_eq!(None, max.param_set_type_name("left"));
+        assert_eq!(None, max.param_set_type_name("right"));
+
+        assert_eq!(None, max.param_get_type_name("bill"));
+        assert_eq!(None, max.param_set_type_name("bill"));
+
         assert_eq!("get", max.access_name());
         assert_eq!(Some("usize"), max.get_type_name());
         assert_eq!(None, max.set_type_name());
@@ -339,7 +390,7 @@ mod tests {
             ),
             HashMap::new(),
         );
-        assert!(max.param_bind(&"left", &left).is_ok());
+        assert!(max.param_try_bind(&"left", &left).is_ok());
         assert_eq!(1, get_max.get());
 
         let right = Arc::new(AtomicUsize::new(2));
@@ -350,25 +401,25 @@ mod tests {
             ),
             HashMap::new(),
         );
-        assert!(max.param_bind(&"right", &right).is_ok());
+        assert!(max.param_try_bind(&"right", &right).is_ok());
         assert_eq!(2, get_max.get());
         max.param_unbind(&"right");
         assert_eq!(1, get_max.get());
 
-        assert!(max.param_bind(&"right", &left).is_ok());
-        assert!(max.param_bind(&"left", &right).is_ok());
+        assert!(max.param_try_bind(&"right", &left).is_ok());
+        assert!(max.param_try_bind(&"left", &right).is_ok());
         assert_eq!(2, get_max.get());
 
-        assert!(max.param_bind(&"left", &left).is_ok());
-        assert!(max.param_bind(&"right", &right).is_ok());
+        assert!(max.param_try_bind(&"left", &left).is_ok());
+        assert!(max.param_try_bind(&"right", &right).is_ok());
         max.param_unbind(&"left");
         assert_eq!(2, get_max.get());
 
         max.param_unbind(&"right");
         assert_eq!(0, get_max.get());
 
-        assert!(max.param_bind(&"left", &left).is_ok());
-        assert!(max.param_bind(&"right", &right).is_ok());
+        assert!(max.param_try_bind(&"left", &left).is_ok());
+        assert!(max.param_try_bind(&"right", &right).is_ok());
         assert_eq!(2, get_max.get());
 
         let sleft = left.as_usize_set();
