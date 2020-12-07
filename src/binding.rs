@@ -272,6 +272,8 @@ mod tests {
     use super::*;
     use std::sync::atomic::AtomicUsize;
 
+    use sched::binding::ParamBindingGet;
+
     #[test]
     fn can_create() {
         let mut g = Binding::new(
@@ -296,5 +298,78 @@ mod tests {
 
         assert_eq!(Err(BindingError::KeyMissing), s.param_bind(&"soda", &g));
         assert_eq!(Err(BindingError::KeyMissing), g.param_bind(&"foo", &s));
+
+        let lswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
+        let rswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
+        let max = Arc::new(sched::binding::ops::GetBinaryOp::new(
+            core::cmp::max,
+            lswap.clone() as Arc<dyn ParamBindingGet<usize>>,
+            rswap.clone() as Arc<dyn ParamBindingGet<usize>>,
+        ));
+
+        let mut map = HashMap::new();
+        map.insert("left".to_string(), ParamAccess::Get(ParamGet::USize(lswap)));
+        map.insert(
+            "right".to_string(),
+            ParamAccess::Get(ParamGet::USize(rswap)),
+        );
+
+        let mut max = Binding::new(
+            Access::Get(Get::USize(Owner::Owned(
+                max as Arc<dyn ParamBindingGet<usize>>,
+            ))),
+            map,
+        );
+        let get_max = max.as_usize_get();
+        assert!(max.as_bool_get().is_none());
+        assert!(get_max.is_some());
+
+        let get_max = get_max.unwrap();
+        assert_eq!(0, get_max.get());
+
+        let left = Arc::new(AtomicUsize::new(1));
+        let left = Binding::new(
+            Access::GetSet(
+                Get::USize(Owner::Owned(left.clone() as _)),
+                Set::USize(Owner::Owned(left.clone() as _)),
+            ),
+            HashMap::new(),
+        );
+        assert!(max.param_bind(&"left", &left).is_ok());
+        assert_eq!(1, get_max.get());
+
+        let right = Arc::new(AtomicUsize::new(2));
+        let right = Binding::new(
+            Access::GetSet(
+                Get::USize(Owner::Owned(right.clone() as _)),
+                Set::USize(Owner::Owned(right.clone() as _)),
+            ),
+            HashMap::new(),
+        );
+        assert!(max.param_bind(&"right", &right).is_ok());
+        assert_eq!(2, get_max.get());
+        max.param_unbind(&"right");
+        assert_eq!(1, get_max.get());
+
+        assert!(max.param_bind(&"right", &left).is_ok());
+        assert!(max.param_bind(&"left", &right).is_ok());
+        assert_eq!(2, get_max.get());
+
+        assert!(max.param_bind(&"left", &left).is_ok());
+        assert!(max.param_bind(&"right", &right).is_ok());
+        max.param_unbind(&"left");
+        assert_eq!(2, get_max.get());
+
+        max.param_unbind(&"right");
+        assert_eq!(0, get_max.get());
+
+        assert!(max.param_bind(&"left", &left).is_ok());
+        assert!(max.param_bind(&"right", &right).is_ok());
+        assert_eq!(2, get_max.get());
+
+        let sleft = left.as_usize_set();
+        assert!(sleft.is_some());
+        sleft.unwrap().set(2084);
+        assert_eq!(2084, get_max.get());
     }
 }
