@@ -18,6 +18,73 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ("ClockData", "clock_data", "ClockData"),
         ];
 
+        {
+            let mut get = Vec::new();
+            let mut set = Vec::new();
+            let mut pget = Vec::new();
+            let mut pset = Vec::new();
+            let mut unbind = Vec::new();
+            for v in variants.iter() {
+                let i = format_ident!("{}", v.0);
+                let t = format_ident!("{}", v.2);
+                get.push(quote! {
+                    #i(Owner<dyn ParamBindingGet<#t>>)
+                });
+                set.push(quote! {
+                    #i(Owner<dyn ParamBindingSet<#t>>)
+                });
+                pget.push(quote! {
+                    #i(Arc<BindingSwapGet<#t>>)
+                });
+                pset.push(quote! {
+                    #i(Arc<BindingSwapSet<#t>>)
+                });
+                unbind.push(quote! {
+                    Self::#i(b) => {
+                        b.unbind();
+                    }
+                });
+            }
+            f.write_all(
+                quote! {
+                    /// Get bindings.
+                    pub enum Get {
+                        #(#get),*
+                    }
+                    /// Set bindings.
+                    pub enum Set {
+                        #(#set),*
+                    }
+                    /// Parameters that you can get values from.
+                    pub enum ParamGet {
+                        #(#pget),*
+                    }
+                    /// Parameters that you can set to a value.
+                    pub enum ParamSet {
+                        #(#pset),*
+                    }
+                    impl ParamGet {
+                        //TODO transform and return output?
+                        pub fn unbind(&mut self) {
+                            match self {
+                                #(#unbind),*
+                            }
+                        }
+                    }
+                    impl ParamSet {
+                        //TODO transform and return output?
+                        pub fn unbind(&mut self) {
+                            match self {
+                                #(#unbind),*
+                            }
+                        }
+                    }
+                }
+                .to_string()
+                .as_bytes(),
+            )?;
+        }
+
         let mut param_get_type_name_variants = Vec::new();
         let mut param_set_type_name_variants = Vec::new();
         let mut binding_get_type_name_variants = Vec::new();

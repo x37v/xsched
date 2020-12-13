@@ -19,46 +19,6 @@ pub enum Owner<T: ?Sized> {
     Unowned(Weak<T>),
 }
 
-/// Get bindings.
-pub enum Get {
-    Bool(Owner<dyn ParamBindingGet<bool>>),
-    U8(Owner<dyn ParamBindingGet<u8>>),
-    USize(Owner<dyn ParamBindingGet<usize>>),
-    ISize(Owner<dyn ParamBindingGet<isize>>),
-    Float(Owner<dyn ParamBindingGet<Float>>),
-    ClockData(Owner<dyn ParamBindingGet<ClockData>>),
-}
-
-/// Set bindings.
-pub enum Set {
-    Bool(Owner<dyn ParamBindingSet<bool>>),
-    U8(Owner<dyn ParamBindingSet<u8>>),
-    USize(Owner<dyn ParamBindingSet<usize>>),
-    ISize(Owner<dyn ParamBindingSet<isize>>),
-    Float(Owner<dyn ParamBindingSet<Float>>),
-    ClockData(Owner<dyn ParamBindingSet<ClockData>>),
-}
-
-/// Parameters that you can get values from.
-pub enum ParamGet {
-    Bool(Arc<BindingSwapGet<bool>>),
-    U8(Arc<BindingSwapGet<u8>>),
-    USize(Arc<BindingSwapGet<usize>>),
-    ISize(Arc<BindingSwapGet<isize>>),
-    Float(Arc<BindingSwapGet<Float>>),
-    ClockData(Arc<BindingSwapGet<ClockData>>),
-}
-
-/// Parameters that you can set to a value.
-pub enum ParamSet {
-    Bool(Arc<BindingSwapSet<bool>>),
-    U8(Arc<BindingSwapSet<u8>>),
-    USize(Arc<BindingSwapSet<usize>>),
-    ISize(Arc<BindingSwapSet<isize>>),
-    Float(Arc<BindingSwapSet<Float>>),
-    ClockData(Arc<BindingSwapSet<ClockData>>),
-}
-
 /// Bindings with their access.
 pub enum Access {
     Get(Get),
@@ -180,58 +140,6 @@ impl Binding {
             param.try_bind(binding)
         } else {
             Err(BindingError::KeyMissing)
-        }
-    }
-}
-
-impl ParamGet {
-    //TODO transform and return output?
-    pub fn unbind(&mut self) {
-        match self {
-            Self::Bool(b) => {
-                b.unbind();
-            }
-            Self::U8(b) => {
-                b.unbind();
-            }
-            Self::USize(b) => {
-                b.unbind();
-            }
-            Self::ISize(b) => {
-                b.unbind();
-            }
-            Self::Float(b) => {
-                b.unbind();
-            }
-            Self::ClockData(b) => {
-                b.unbind();
-            }
-        }
-    }
-}
-
-impl ParamSet {
-    //TODO transform and return output?
-    pub fn unbind(&mut self) {
-        match self {
-            Self::Bool(b) => {
-                b.unbind();
-            }
-            Self::U8(b) => {
-                b.unbind();
-            }
-            Self::USize(b) => {
-                b.unbind();
-            }
-            Self::ISize(b) => {
-                b.unbind();
-            }
-            Self::Float(b) => {
-                b.unbind();
-            }
-            Self::ClockData(b) => {
-                b.unbind();
-            }
         }
     }
 }
