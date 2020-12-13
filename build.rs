@@ -18,6 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ("ClockData", "clock_data", "ClockData"),
         ];
 
+        //build out Get, Set, ParamGet and ParamSet
         {
             let mut get = Vec::new();
             let mut set = Vec::new();
