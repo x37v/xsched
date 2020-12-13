@@ -46,7 +46,7 @@ pub enum BindingError {
 
 pub struct Binding {
     binding: Access,
-    params: HashMap<String, ParamAccess>,
+    params: HashMap<&'static str, ParamAccess>,
     uuid: uuid::Uuid,
 }
 
@@ -65,7 +65,7 @@ where
 
 impl Binding {
     /// Create a new binding
-    pub fn new(binding: Access, params: HashMap<String, ParamAccess>) -> Self {
+    pub fn new(binding: Access, params: HashMap<&'static str, ParamAccess>) -> Self {
         Self {
             binding,
             params,
@@ -87,7 +87,7 @@ impl Binding {
     }
 
     ///Get the param keys.
-    pub fn param_keys(&self) -> Keys<'_, String, ParamAccess> {
+    pub fn param_keys(&self) -> Keys<'_, &'static str, ParamAccess> {
         self.params.keys()
     }
 
@@ -185,11 +185,8 @@ mod tests {
         ));
 
         let mut map = HashMap::new();
-        map.insert("left".to_string(), ParamAccess::Get(ParamGet::USize(lswap)));
-        map.insert(
-            "right".to_string(),
-            ParamAccess::Get(ParamGet::USize(rswap)),
-        );
+        map.insert("left", ParamAccess::Get(ParamGet::USize(lswap)));
+        map.insert("right", ParamAccess::Get(ParamGet::USize(rswap)));
 
         let mut max = Binding::new(
             Access::Get(Get::USize(Owner::Owned(
@@ -210,11 +207,11 @@ mod tests {
         assert_eq!(None, max.param_get_type_name("bill"));
         assert_eq!(None, max.param_set_type_name("bill"));
 
-        let keys: Vec<String> = max.param_keys().into_iter().map(|k| k.clone()).collect();
+        let keys: Vec<&'static str> = max.param_keys().into_iter().map(|k| k.clone()).collect();
 
         assert_eq!(2, keys.len());
-        assert!(keys.contains(&"left".to_string()));
-        assert!(keys.contains(&"right".to_string()));
+        assert!(keys.contains(&"left"));
+        assert!(keys.contains(&"right"));
 
         assert_eq!("get", max.access_name());
         assert_eq!(Some("usize"), max.get_type_name());
