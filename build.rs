@@ -9,6 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let out_dir = env::var_os("OUT_DIR").unwrap();
         let dest_path = Path::new(&out_dir).join("binding.rs");
         let mut f = std::fs::File::create(&dest_path)?;
+        //(enum Varaiant Name, str for function naming, actual type name)
         let variants = [
             ("Bool", "bool", "bool"),
             ("U8", "u8", "u8"),
