@@ -4,6 +4,7 @@ use sched::{
         swap::{BindingSwapGet, BindingSwapSet},
         ParamBindingGet, ParamBindingSet,
     },
+    tick::{TickResched, TickSched},
     Float,
 };
 use std::{

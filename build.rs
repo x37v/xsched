@@ -17,6 +17,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ("ISize", "isize", "isize"),
             ("Float", "float", "Float"),
             ("ClockData", "clock_data", "ClockData"),
+            ("TickResched", "tick_resched", "TickResched"),
+            ("TickSched", "tick_sched", "TickSched"),
         ];
 
         //build out Get, Set, ParamGet and ParamSet
