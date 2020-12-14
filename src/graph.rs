@@ -63,6 +63,7 @@ impl GraphItem {
         params: P,
     ) -> Self {
         let children: Arc<Mutex<SwapChildren>> = Default::default();
+        //add child_exec_index to the parameters
         let mut params = params.into();
         params.insert_unbound(
             &"child_exec_index",
