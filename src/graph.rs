@@ -1,13 +1,15 @@
 //! Graph nodes
 
 use crate::{
-    children::{Children, SwapChildren, SwapChildrenContainer},
+    children::{ALockChildren, SwapChildren, SwapChildrenContainer},
     param::ParamHashMap,
 };
 use sched::{
     binding::swap::BindingSwapSet,
     graph::{node_wrapper::GraphNodeWrapper, GraphLeafExec, GraphNodeContainer, GraphNodeExec},
+    mutex::Mutex,
 };
+
 use std::sync::Arc;
 
 /// An enum for holding and describing graph nodes.
@@ -17,8 +19,7 @@ pub enum GraphItem {
         uuid: uuid::Uuid,
         inner: GraphNodeContainer,
         params: ParamHashMap,
-        children: Arc<SwapChildren>,
-        child_index_binding: BindingSwapSet<usize>,
+        children: Arc<Mutex<SwapChildren>>,
     },
     Leaf {
         type_name: &'static str,
@@ -61,14 +62,20 @@ impl GraphItem {
         exec: N,
         params: P,
     ) -> Self {
-        let children: Arc<SwapChildren> = Default::default();
+        let children: Arc<Mutex<SwapChildren>> = Default::default();
+        let mut params = params.into();
+        params.insert_unbound(
+            &"child_exec_index",
+            crate::param::ParamAccess::Set(crate::param::ParamSet::USize(
+                children.lock().index_binding(),
+            )),
+        );
         Self::Node {
             type_name,
             uuid: uuid::Uuid::new_v4(),
             inner: GraphNodeWrapper::new(exec, SwapChildrenContainer::new(children.clone())).into(),
-            params: params.into(),
+            params,
             children,
-            child_index_binding: Default::default(),
         }
     }
 
@@ -80,8 +87,14 @@ impl GraphItem {
     }
 
     /// Swap children
-    pub fn swap_children(&mut self) {
-        //TODO
+    pub fn swap_children(
+        &mut self,
+        new_children: ALockChildren,
+    ) -> Result<ALockChildren, ALockChildren> {
+        match self {
+            Self::Node { children, .. } => Ok(children.lock().swap(new_children)),
+            Self::Leaf { .. } => Err(new_children),
+        }
     }
 
     ///Get the type name for this item.
