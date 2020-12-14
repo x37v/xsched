@@ -1,9 +1,15 @@
 use sched::{
-    binding::ParamBindingSet,
+    binding::{swap::BindingSwapSet, ParamBindingSet},
     event::EventEvalContext,
     graph::{ChildCount, GraphChildExec, GraphNode, GraphNodeContainer},
+    mutex::Mutex,
 };
-use std::sync::Arc;
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
+
+pub type ALockChildren = Arc<Mutex<Children>>;
 
 pub struct ChildWithUUID {
     pub inner: GraphNodeContainer,
@@ -16,30 +22,38 @@ pub enum Children {
     /// A single child that acts like many.
     NChild {
         child: ChildWithUUID,
-        index_binding: Arc<dyn ParamBindingSet<usize>>,
     },
     Indexed {
         children: Vec<ChildWithUUID>,
-        index_binding: Arc<dyn ParamBindingSet<usize>>,
     },
 }
 
 /// A wrapper for children that has swappable members.
 #[derive(Default)]
 pub struct SwapChildren {
-    children: sched::mutex::Mutex<Children>,
-    //XXX can we move the index_binding in here?
+    children: Arc<Mutex<Children>>,
+    index_binding: Arc<BindingSwapSet<usize>>,
 }
 
 /// A new type so we can implement GraphChildExec
-pub struct SwapChildrenContainer(Arc<SwapChildren>);
+pub struct SwapChildrenContainer(Arc<Mutex<SwapChildren>>);
 
-impl GraphChildExec for Children {
+impl SwapChildren {
+    pub fn swap(&mut self, children: ALockChildren) -> ALockChildren {
+        std::mem::replace(&mut self.children, children)
+    }
+
+    pub fn index_binding(&self) -> Arc<BindingSwapSet<usize>> {
+        self.index_binding.clone()
+    }
+}
+
+impl GraphChildExec for SwapChildren {
     fn child_count(&self) -> ChildCount {
-        match self {
-            Self::None => ChildCount::None,
-            Self::NChild { .. } => ChildCount::Inf,
-            Self::Indexed { children, .. } => ChildCount::Some(children.len()),
+        match self.children.lock().deref() {
+            Children::None => ChildCount::None,
+            Children::NChild { .. } => ChildCount::Inf,
+            Children::Indexed { children, .. } => ChildCount::Some(children.len()),
         }
     }
 
@@ -48,25 +62,19 @@ impl GraphChildExec for Children {
         context: &mut dyn EventEvalContext,
         range: core::ops::Range<usize>,
     ) {
-        match self {
-            Self::None => (),
-            Self::NChild {
-                child,
-                index_binding,
-            } => {
+        match self.children.lock().deref_mut() {
+            Children::None => (),
+            Children::NChild { child } => {
                 for i in range {
-                    index_binding.set(i);
+                    self.index_binding.set(i);
                     child.inner.node_exec(context);
                 }
             }
-            Self::Indexed {
-                children,
-                index_binding,
-            } => {
+            Children::Indexed { children } => {
                 let (_, r) = children.split_at_mut(range.start);
                 let (r, _) = r.split_at_mut(range.end - range.start);
                 for (i, c) in r.iter_mut().enumerate() {
-                    index_binding.set(i + range.start);
+                    self.index_binding.set(i + range.start);
                     c.inner.node_exec(context);
                 }
             }
@@ -81,14 +89,14 @@ impl Default for Children {
 }
 
 impl SwapChildrenContainer {
-    pub fn new(inner: Arc<SwapChildren>) -> Self {
+    pub fn new(inner: Arc<Mutex<SwapChildren>>) -> Self {
         Self(inner)
     }
 }
 
 impl GraphChildExec for SwapChildrenContainer {
     fn child_count(&self) -> ChildCount {
-        self.0.children.lock().child_count()
+        self.0.lock().child_count()
     }
 
     fn child_exec_range(
@@ -96,6 +104,6 @@ impl GraphChildExec for SwapChildrenContainer {
         context: &mut dyn EventEvalContext,
         range: core::ops::Range<usize>,
     ) {
-        self.0.children.lock().child_exec_range(context, range)
+        self.0.lock().child_exec_range(context, range)
     }
 }
