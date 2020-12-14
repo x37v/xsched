@@ -1,17 +1,13 @@
 use sched::{
-    binding::{
-        bpm::ClockData,
-        swap::{BindingSwapGet, BindingSwapSet},
-        ParamBindingGet, ParamBindingSet,
-    },
+    binding::{bpm::ClockData, ParamBindingGet, ParamBindingSet},
     tick::{TickResched, TickSched},
     Float,
 };
-use std::{
-    collections::{hash_map::Keys, HashMap},
-    sync::{Arc, Weak},
-};
 
+use crate::param::ParamHashMap;
+use std::sync::{Arc, Weak};
+
+//pull in the codegen
 include!(concat!(env!("OUT_DIR"), "/binding.rs"));
 
 /// Strong, "owned", or weak, "unowned" bindings.
@@ -27,33 +23,9 @@ pub enum Access {
     GetSet(Get, Set),
 }
 
-/// Parameters with their access.
-pub enum ParamAccess {
-    Get(ParamGet),
-    Set(ParamSet),
-    GetSet(ParamGet, ParamSet),
-}
-
-/// Errors in binding parameters.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BindingError {
-    /// No parameter with the given name
-    KeyMissing,
-    /// Input didn't have needed Get
-    NoGet,
-    /// Input didn't have needed Set
-    NoSet,
-}
-
-/// A helper struct that simply associates a param with a uuid
-pub struct ParamAccessWithUUID {
-    pub access: ParamAccess,
-    pub uuid: Option<uuid::Uuid>,
-}
-
 pub struct Binding {
     binding: Access,
-    params: HashMap<&'static str, ParamAccessWithUUID>,
+    params: ParamHashMap,
     uuid: uuid::Uuid,
 }
 
@@ -72,21 +44,10 @@ where
 
 impl Binding {
     /// Create a new binding
-    pub fn new(binding: Access, params: HashMap<&'static str, ParamAccess>) -> Self {
+    pub fn new<P: Into<ParamHashMap>>(binding: Access, params: P) -> Self {
         Self {
             binding,
-            params: params
-                .into_iter()
-                .map(|(k, v)| {
-                    (
-                        k,
-                        ParamAccessWithUUID {
-                            access: v,
-                            uuid: None,
-                        },
-                    )
-                })
-                .collect(),
+            params: params.into(),
             uuid: uuid::Uuid::new_v4(),
         }
     }
@@ -104,80 +65,24 @@ impl Binding {
         }
     }
 
-    ///Get the param keys.
-    pub fn param_keys(&self) -> Keys<'_, &'static str, ParamAccessWithUUID> {
-        self.params.keys()
+    ///Get a reference to the parameters for this binding.
+    pub fn params(&self) -> &ParamHashMap {
+        &self.params
     }
 
-    /// Get the access name for the parameter with `name`.
-    pub fn param_access_name(&self, name: &str) -> Option<&str> {
-        if let Some(param) = self.params.get(name) {
-            Some(param.access_name())
-        } else {
-            None
-        }
-    }
-
-    /// Get the 'get' type name for the parameter with `name`, if there is a param and if it has a
-    /// get.
-    pub fn param_get_type_name(&self, name: &str) -> Option<&str> {
-        if let Some(param) = self.params.get(name) {
-            param.get_type_name()
-        } else {
-            None
-        }
-    }
-
-    /// Get the 'set' type name for the parameter with `name`, if there is a param and if it has a
-    /// set.
-    pub fn param_set_type_name(&self, name: &str) -> Option<&str> {
-        if let Some(param) = self.params.get(name) {
-            param.set_type_name()
-        } else {
-            None
-        }
-    }
-
-    /// Get the uuid of the bound parameter
-    pub fn param_uuid(&self, name: &str) -> Option<uuid::Uuid> {
-        if let Some(param) = self.params.get(name) {
-            param.uuid()
-        } else {
-            None
-        }
-    }
-
-    pub fn param_unbind(&mut self, name: &str) {
-        if let Some(param) = self.params.get_mut(name) {
-            match &mut param.access {
-                ParamAccess::Get(g) => g.unbind(),
-                ParamAccess::Set(s) => s.unbind(),
-                ParamAccess::GetSet(g, s) => {
-                    g.unbind();
-                    s.unbind();
-                }
-            }
-            param.uuid = None;
-        }
-    }
-
-    ///Bind the parameter with the give `name` to the given `binding`.
-    ///
-    pub fn param_try_bind(&mut self, name: &str, binding: &Self) -> Result<(), BindingError> {
-        if let Some(param) = self.params.get_mut(name) {
-            param.try_bind(binding)
-        } else {
-            Err(BindingError::KeyMissing)
-        }
+    ///Get a mut reference to the parameters for this binding.
+    pub fn params_mut(&mut self) -> &mut ParamHashMap {
+        &mut self.params
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::AtomicUsize;
-
+    use crate::param::*;
     use sched::binding::ParamBindingGet;
+    use std::collections::HashMap;
+    use std::sync::atomic::AtomicUsize;
 
     #[test]
     fn can_create() {
@@ -201,10 +106,16 @@ mod tests {
         assert_eq!(Some("usize"), s.get_type_name());
         assert_eq!(Some("usize"), s.set_type_name());
 
-        assert_eq!(Err(BindingError::KeyMissing), s.param_try_bind(&"soda", &g));
-        assert_eq!(Err(BindingError::KeyMissing), g.param_try_bind(&"foo", &s));
-        assert_eq!(None, s.param_uuid(&"soda"));
-        assert_eq!(None, s.param_uuid(&"foo"));
+        assert_eq!(
+            Err(BindingError::KeyMissing),
+            s.params_mut().try_bind(&"soda", &g)
+        );
+        assert_eq!(
+            Err(BindingError::KeyMissing),
+            g.params_mut().try_bind(&"foo", &s)
+        );
+        assert_eq!(None, s.params().uuid(&"soda"));
+        assert_eq!(None, s.params().uuid(&"foo"));
 
         let lswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
         let rswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
@@ -224,23 +135,23 @@ mod tests {
             ))),
             map,
         );
-        assert_eq!(None, s.param_uuid(&"left"));
-        assert_eq!(None, s.param_uuid(&"right"));
-        assert_eq!(None, s.param_uuid(&"bill"));
+        assert_eq!(None, s.params().uuid(&"left"));
+        assert_eq!(None, s.params().uuid(&"right"));
+        assert_eq!(None, s.params().uuid(&"bill"));
 
-        assert_eq!(Some("get"), max.param_access_name("left"));
-        assert_eq!(Some("get"), max.param_access_name("right"));
-        assert_eq!(None, max.param_access_name("bill"));
+        assert_eq!(Some("get"), max.params().access_name("left"));
+        assert_eq!(Some("get"), max.params().access_name("right"));
+        assert_eq!(None, max.params().access_name("bill"));
 
-        assert_eq!(Some("usize"), max.param_get_type_name("left"));
-        assert_eq!(Some("usize"), max.param_get_type_name("right"));
-        assert_eq!(None, max.param_set_type_name("left"));
-        assert_eq!(None, max.param_set_type_name("right"));
+        assert_eq!(Some("usize"), max.params().get_type_name("left"));
+        assert_eq!(Some("usize"), max.params().get_type_name("right"));
+        assert_eq!(None, max.params().set_type_name("left"));
+        assert_eq!(None, max.params().set_type_name("right"));
 
-        assert_eq!(None, max.param_get_type_name("bill"));
-        assert_eq!(None, max.param_set_type_name("bill"));
+        assert_eq!(None, max.params().get_type_name("bill"));
+        assert_eq!(None, max.params().set_type_name("bill"));
 
-        let keys: Vec<&'static str> = max.param_keys().into_iter().map(|k| k.clone()).collect();
+        let keys: Vec<&'static str> = max.params().keys().into_iter().map(|k| k.clone()).collect();
 
         assert_eq!(2, keys.len());
         assert!(keys.contains(&"left"));
@@ -265,9 +176,9 @@ mod tests {
             ),
             HashMap::new(),
         );
-        assert_eq!(None, max.param_uuid(&"left"));
-        assert!(max.param_try_bind(&"left", &left).is_ok());
-        assert_eq!(Some(left.uuid()), max.param_uuid(&"left"));
+        assert_eq!(None, max.params().uuid(&"left"));
+        assert!(max.params_mut().try_bind(&"left", &left).is_ok());
+        assert_eq!(Some(left.uuid()), max.params().uuid(&"left"));
         assert_eq!(1, get_max.get());
 
         let right = Arc::new(AtomicUsize::new(2));
@@ -278,39 +189,39 @@ mod tests {
             ),
             HashMap::new(),
         );
-        assert_eq!(None, max.param_uuid(&"right"));
-        assert!(max.param_try_bind(&"right", &right).is_ok());
-        assert_eq!(Some(left.uuid()), max.param_uuid(&"left"));
-        assert_eq!(Some(right.uuid()), max.param_uuid(&"right"));
+        assert_eq!(None, max.params().uuid(&"right"));
+        assert!(max.params_mut().try_bind(&"right", &right).is_ok());
+        assert_eq!(Some(left.uuid()), max.params().uuid(&"left"));
+        assert_eq!(Some(right.uuid()), max.params().uuid(&"right"));
         assert_eq!(2, get_max.get());
-        max.param_unbind(&"right");
-        assert_eq!(None, max.param_uuid(&"right"));
+        max.params_mut().unbind(&"right");
+        assert_eq!(None, max.params().uuid(&"right"));
         assert_eq!(1, get_max.get());
 
-        assert!(max.param_try_bind(&"right", &left).is_ok());
-        assert!(max.param_try_bind(&"left", &right).is_ok());
-        assert_eq!(Some(left.uuid()), max.param_uuid(&"right"));
-        assert_eq!(Some(right.uuid()), max.param_uuid(&"left"));
+        assert!(max.params_mut().try_bind(&"right", &left).is_ok());
+        assert!(max.params_mut().try_bind(&"left", &right).is_ok());
+        assert_eq!(Some(left.uuid()), max.params().uuid(&"right"));
+        assert_eq!(Some(right.uuid()), max.params().uuid(&"left"));
         assert_eq!(2, get_max.get());
 
-        assert!(max.param_try_bind(&"left", &left).is_ok());
-        assert!(max.param_try_bind(&"right", &right).is_ok());
-        assert_eq!(Some(left.uuid()), max.param_uuid(&"left"));
-        assert_eq!(Some(right.uuid()), max.param_uuid(&"right"));
-        max.param_unbind(&"left");
-        assert_eq!(Some(right.uuid()), max.param_uuid(&"right"));
-        assert_eq!(None, max.param_uuid(&"left"));
+        assert!(max.params_mut().try_bind(&"left", &left).is_ok());
+        assert!(max.params_mut().try_bind(&"right", &right).is_ok());
+        assert_eq!(Some(left.uuid()), max.params().uuid(&"left"));
+        assert_eq!(Some(right.uuid()), max.params().uuid(&"right"));
+        max.params_mut().unbind(&"left");
+        assert_eq!(Some(right.uuid()), max.params().uuid(&"right"));
+        assert_eq!(None, max.params().uuid(&"left"));
         assert_eq!(2, get_max.get());
 
-        max.param_unbind(&"right");
-        assert_eq!(None, max.param_uuid(&"right"));
-        assert_eq!(None, max.param_uuid(&"left"));
+        max.params_mut().unbind(&"right");
+        assert_eq!(None, max.params().uuid(&"right"));
+        assert_eq!(None, max.params().uuid(&"left"));
         assert_eq!(0, get_max.get());
 
-        assert!(max.param_try_bind(&"left", &left).is_ok());
-        assert!(max.param_try_bind(&"right", &right).is_ok());
-        assert_eq!(Some(left.uuid()), max.param_uuid(&"left"));
-        assert_eq!(Some(right.uuid()), max.param_uuid(&"right"));
+        assert!(max.params_mut().try_bind(&"left", &left).is_ok());
+        assert!(max.params_mut().try_bind(&"right", &right).is_ok());
+        assert_eq!(Some(left.uuid()), max.params().uuid(&"left"));
+        assert_eq!(Some(right.uuid()), max.params().uuid(&"right"));
         assert_eq!(2, get_max.get());
 
         let sleft = left.as_usize_set();

@@ -4,11 +4,12 @@ use std::io::Write;
 use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    //bindings
+    //bindings and params
     {
         let out_dir = env::var_os("OUT_DIR").unwrap();
-        let dest_path = Path::new(&out_dir).join("binding.rs");
-        let mut f = std::fs::File::create(&dest_path)?;
+        let mut bindings_file = std::fs::File::create(&Path::new(&out_dir).join("binding.rs"))?;
+        let mut params_file = std::fs::File::create(&Path::new(&out_dir).join("param.rs"))?;
+
         //(enum Varaiant Name, str for function naming, actual type name)
         let variants = [
             ("Bool", "bool", "bool"),
@@ -38,10 +39,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     #i(Owner<dyn ParamBindingSet<#t>>)
                 });
                 pget.push(quote! {
-                    #i(Arc<BindingSwapGet<#t>>)
+                    #i(::std::sync::Arc<BindingSwapGet<#t>>)
                 });
                 pset.push(quote! {
-                    #i(Arc<BindingSwapSet<#t>>)
+                    #i(::std::sync::Arc<BindingSwapSet<#t>>)
                 });
                 unbind.push(quote! {
                     Self::#i(b) => {
@@ -49,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 });
             }
-            f.write_all(
+            bindings_file.write_all(
                 quote! {
                     /// Get bindings.
                     pub enum Get {
@@ -59,6 +60,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     pub enum Set {
                         #(#set),*
                     }
+                }
+                .to_string()
+                .as_bytes(),
+            )?;
+            params_file.write_all(
+                quote! {
                     /// Parameters that you can get values from.
                     pub enum ParamGet {
                         #(#pget),*
@@ -158,13 +165,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let type_ident = format_ident!("{}", tname);
 
             binding_typed_getset.push(quote! {
-                pub fn #get_ident(&self) -> Option<Arc<dyn ParamBindingGet<#type_ident>>> {
+                pub fn #get_ident(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#type_ident>>> {
                     match self.as_get() {
                         Some(Get::#i(o)) => o.as_arc(),
                         _ => None,
                     }
                 }
-                pub fn #set_ident(&self) -> Option<Arc<dyn ParamBindingSet<#type_ident>>> {
+                pub fn #set_ident(&self) -> Option<std::sync::Arc<dyn ParamBindingSet<#type_ident>>> {
                     match self.as_set() {
                         Some(Set::#i(o)) => o.as_arc(),
                         _ => None,
@@ -173,7 +180,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
 
-        f.write_all(
+        bindings_file.write_all(
             quote! {
                 impl Binding {
 
@@ -216,7 +223,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 }
+            }
+            .to_string()
+            .as_bytes(),
+        )?;
 
+        params_file.write_all(
+            quote! {
                 impl ParamAccessWithUUID {
                     fn as_get(&self) -> Option<&ParamGet> {
                         match &self.access {
@@ -267,7 +280,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             #(#try_bind_variants)*
                         };
                         if b.is_ok() {
-                            self.uuid = Some(binding.uuid);
+                            self.uuid = Some(binding.uuid());
                         }
                         b
                     }
