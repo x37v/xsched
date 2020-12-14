@@ -57,6 +57,10 @@ impl GraphItem {
     /// * `type_name` - the name of the graph `exec` type, used to describe this node.
     /// * `exec` - the executor for this node.
     /// * `params` - a map of the parameters for this node.
+    ///
+    /// # Remarks
+    ///
+    /// * a `child_exec_index` Set(USize) item will be added to `params`, it must not collide.
     pub fn new_node<P: Into<ParamHashMap>, N: GraphNodeExec + 'static>(
         type_name: &'static str,
         exec: N,
