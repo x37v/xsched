@@ -123,3 +123,8 @@ All prefixed with `/xsched`
   }
 }
 ```
+
+
+## TODO
+
+If we create types at runtime, we can still use `&'static str` we simply need to create it with `Box::leak`.
