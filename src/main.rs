@@ -1,10 +1,18 @@
-use xsched::jack::Jack;
-use xsched::sched::Sched;
+use xsched::{
+    binding::Binding, graph::GraphItem, jack::Jack, oscquery::OSCQueryHandler, sched::Sched,
+};
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    str::FromStr,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
-fn main() {
+fn main() -> Result<(), std::io::Error> {
     let run = Arc::new(AtomicBool::new(true));
     //gracefully handle control-c
     {
@@ -15,9 +23,14 @@ fn main() {
         .expect("Error setting Ctrl-C handler");
     }
 
+    let bindings: HashMap<&str, Binding> = Default::default();
+    let graph: HashMap<&str, GraphItem> = Default::default();
+
     let sched = Sched::new();
-    let jack = Jack::new(sched);
+    let _jack = Jack::new(sched);
+    let server = OSCQueryHandler::new(bindings, graph)?;
     while run.load(Ordering::Acquire) {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
+    Ok(())
 }
