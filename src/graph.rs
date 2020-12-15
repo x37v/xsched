@@ -5,7 +5,6 @@ use crate::{
     param::ParamHashMap,
 };
 use sched::{
-    binding::swap::BindingSwapSet,
     graph::{node_wrapper::GraphNodeWrapper, GraphLeafExec, GraphNodeContainer, GraphNodeExec},
     mutex::Mutex,
 };
@@ -14,6 +13,15 @@ use std::sync::Arc;
 
 /// An enum for holding and describing graph nodes.
 pub enum GraphItem {
+    /// Root is a root of a graph, it cannot be added as a child.
+    Root {
+        type_name: &'static str,
+        uuid: uuid::Uuid,
+        inner: GraphNodeContainer,
+        params: ParamHashMap,
+        children: Arc<Mutex<SwapChildren>>,
+    },
+    ///Node can have children.
     Node {
         type_name: &'static str,
         uuid: uuid::Uuid,
@@ -21,6 +29,7 @@ pub enum GraphItem {
         params: ParamHashMap,
         children: Arc<Mutex<SwapChildren>>,
     },
+    ///Leaf is a terminal node, cannot have children.
     Leaf {
         type_name: &'static str,
         uuid: uuid::Uuid,
@@ -84,8 +93,43 @@ impl GraphItem {
         }
     }
 
+    /// Create a new root.
+    ///
+    /// # Arguments
+    ///
+    /// * `type_name` - the name of the graph `exec` type, used to describe this node.
+    /// * `exec` - the executor for this node.
+    /// * `params` - a map of the parameters for this node.
+    ///
+    /// # Remarks
+    ///
+    /// * a `child_exec_index` Set(USize) item will be added to `params`, it must not collide.
+    pub fn new_root<P: Into<ParamHashMap>, N: GraphNodeExec + 'static>(
+        type_name: &'static str,
+        exec: N,
+        params: P,
+    ) -> Self {
+        let children: Arc<Mutex<SwapChildren>> = Default::default();
+        //add child_exec_index to the parameters
+        let mut params = params.into();
+        params.insert_unbound(
+            &"child_exec_index",
+            crate::param::ParamAccess::Set(crate::param::ParamSet::USize(
+                children.lock().index_binding(),
+            )),
+        );
+        Self::Root {
+            type_name,
+            uuid: uuid::Uuid::new_v4(),
+            inner: GraphNodeWrapper::new(exec, SwapChildrenContainer::new(children.clone())).into(),
+            params,
+            children,
+        }
+    }
+
     pub fn get_node(&self) -> GraphNodeContainer {
         match self {
+            Self::Root { inner, .. } => inner.clone(),
             Self::Node { inner, .. } => inner.clone(),
             Self::Leaf { inner, .. } => inner.clone(),
         }
@@ -97,6 +141,7 @@ impl GraphItem {
         new_children: ALockChildren,
     ) -> Result<ALockChildren, ALockChildren> {
         match self {
+            Self::Root { children, .. } => Ok(children.lock().swap(new_children)),
             Self::Node { children, .. } => Ok(children.lock().swap(new_children)),
             Self::Leaf { .. } => Err(new_children),
         }
@@ -105,6 +150,7 @@ impl GraphItem {
     ///Get the type name for this item.
     pub fn type_name(&self) -> &'static str {
         match self {
+            Self::Root { type_name, .. } => type_name,
             Self::Node { type_name, .. } => type_name,
             Self::Leaf { type_name, .. } => type_name,
         }
@@ -113,6 +159,7 @@ impl GraphItem {
     ///Get a reference to the parameters for this item.
     pub fn params(&self) -> &ParamHashMap {
         match self {
+            Self::Root { params, .. } => params,
             Self::Node { params, .. } => params,
             Self::Leaf { params, .. } => params,
         }
@@ -121,6 +168,7 @@ impl GraphItem {
     ///Get a mut reference to the parameters for this item.
     pub fn params_mut(&mut self) -> &ParamHashMap {
         match self {
+            Self::Root { params, .. } => params,
             Self::Node { params, .. } => params,
             Self::Leaf { params, .. } => params,
         }
