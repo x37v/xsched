@@ -10,12 +10,6 @@ use std::sync::{Arc, Weak};
 //pull in the codegen
 include!(concat!(env!("OUT_DIR"), "/binding.rs"));
 
-/// Strong, "owned", or weak, "unowned" bindings.
-pub enum Owner<T: ?Sized> {
-    Owned(Arc<T>),
-    Unowned(Weak<T>),
-}
-
 /// Bindings with their access.
 pub enum Access {
     Get(Get),
@@ -27,19 +21,6 @@ pub struct Binding {
     binding: Access,
     params: ParamHashMap,
     uuid: uuid::Uuid,
-}
-
-impl<T> Owner<T>
-where
-    T: ?Sized,
-{
-    /// Get an Arc if possible.
-    pub fn as_arc(&self) -> Option<Arc<T>> {
-        match self {
-            Owner::Owned(a) => Some(a.clone()),
-            Owner::Unowned(w) => w.upgrade(),
-        }
-    }
 }
 
 impl Binding {
@@ -87,7 +68,9 @@ mod tests {
     #[test]
     fn can_create() {
         let mut g = Binding::new(
-            Access::Get(Get::USize(Owner::Owned(Arc::new(AtomicUsize::new(0)) as _))),
+            Access::Get(Get::USize(Arc::new(
+                Arc::new(AtomicUsize::new(0)) as Arc<dyn ParamBindingGet<usize>>
+            ))),
             HashMap::new(),
         );
         assert_eq!("get", g.access_name());
@@ -97,8 +80,8 @@ mod tests {
         let a = Arc::new(AtomicUsize::new(0));
         let mut s = Binding::new(
             Access::GetSet(
-                Get::USize(Owner::Owned(a.clone() as _)),
-                Set::USize(Owner::Owned(a.clone() as _)),
+                Get::USize(Arc::new(a.clone() as Arc<dyn ParamBindingGet<usize>>)),
+                Set::USize(Arc::new(a.clone() as Arc<dyn ParamBindingSet<usize>>)),
             ),
             HashMap::new(),
         );
@@ -130,9 +113,7 @@ mod tests {
         map.insert("right", ParamAccess::Get(ParamGet::USize(rswap)));
 
         let mut max = Binding::new(
-            Access::Get(Get::USize(Owner::Owned(
-                max as Arc<dyn ParamBindingGet<usize>>,
-            ))),
+            Access::Get(Get::USize(Arc::new(max as Arc<dyn ParamBindingGet<usize>>))),
             map,
         );
         assert_eq!(None, s.params().uuid(&"left"));
@@ -171,8 +152,8 @@ mod tests {
         let left = Arc::new(AtomicUsize::new(1));
         let left = Binding::new(
             Access::GetSet(
-                Get::USize(Owner::Owned(left.clone() as _)),
-                Set::USize(Owner::Owned(left.clone() as _)),
+                Get::USize(Arc::new(left.clone() as Arc<dyn ParamBindingGet<usize>>)),
+                Set::USize(Arc::new(left.clone() as Arc<dyn ParamBindingSet<usize>>)),
             ),
             HashMap::new(),
         );
@@ -184,8 +165,8 @@ mod tests {
         let right = Arc::new(AtomicUsize::new(2));
         let right = Binding::new(
             Access::GetSet(
-                Get::USize(Owner::Owned(right.clone() as _)),
-                Set::USize(Owner::Owned(right.clone() as _)),
+                Get::USize(Arc::new(right.clone() as Arc<dyn ParamBindingGet<usize>>)),
+                Set::USize(Arc::new(right.clone() as Arc<dyn ParamBindingSet<usize>>)),
             ),
             HashMap::new(),
         );

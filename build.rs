@@ -33,10 +33,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let i = format_ident!("{}", v.0);
                 let t = format_ident!("{}", v.2);
                 get.push(quote! {
-                    #i(Owner<dyn ParamBindingGet<#t>>)
+                    #i(Arc<dyn ParamBindingGet<#t>>)
                 });
                 set.push(quote! {
-                    #i(Owner<dyn ParamBindingSet<#t>>)
+                    #i(Arc<dyn ParamBindingSet<#t>>)
                 });
                 pget.push(quote! {
                     #i(::std::sync::Arc<BindingSwapGet<#t>>)
@@ -167,13 +167,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             binding_typed_getset.push(quote! {
                 pub fn #get_ident(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#type_ident>>> {
                     match self.as_get() {
-                        Some(Get::#i(o)) => o.as_arc(),
+                        Some(Get::#i(o)) => Some(o.clone()),
                         _ => None,
                     }
                 }
                 pub fn #set_ident(&self) -> Option<std::sync::Arc<dyn ParamBindingSet<#type_ident>>> {
                     match self.as_set() {
-                        Some(Set::#i(o)) => o.as_arc(),
+                        Some(Set::#i(o)) => Some(o.clone()),
                         _ => None,
                     }
                 }
