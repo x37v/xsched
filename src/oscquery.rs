@@ -1,18 +1,10 @@
-use crate::{binding::Binding, graph::GraphItem, sched::Sched};
+use crate::{binding::Binding, graph::GraphItem};
 use oscquery::{root::NodeHandle, OscQueryServer};
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    str::FromStr,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
-};
+use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
 
 pub struct OSCQueryHandler {
-    bindings: std::sync::Mutex<HashMap<&'static str, Binding>>,
-    graph: std::sync::Mutex<HashMap<&'static str, GraphItem>>,
+    bindings: std::sync::Mutex<HashMap<String, Arc<Binding>>>,
+    graph: std::sync::Mutex<HashMap<String, Arc<GraphItem>>>,
     server: OscQueryServer,
     xsched_handle: NodeHandle,
     bindings_handle: NodeHandle,
@@ -22,8 +14,8 @@ pub struct OSCQueryHandler {
 
 impl OSCQueryHandler {
     pub fn new(
-        bindings: HashMap<&'static str, Binding>,
-        graph: HashMap<&'static str, GraphItem>,
+        bindings: HashMap<String, Binding>,
+        graph: HashMap<String, GraphItem>,
     ) -> Result<Self, std::io::Error> {
         let server = OscQueryServer::new(
             Some("xsched".into()),
@@ -75,14 +67,47 @@ impl OSCQueryHandler {
                 Some(xsched_handle),
             )
             .expect("to add handle");
-        Ok(Self {
+        let s = Self {
             server,
             xsched_handle,
             bindings_handle,
             graph_handle,
-            bindings: Mutex::new(bindings),
-            graph: Mutex::new(graph),
+            bindings: Default::default(),
+            graph: Default::default(),
             handles,
-        })
+        };
+
+        //TODO add bindings and graph
+        Ok(s)
+    }
+
+    fn add_binding(&mut self, binding: Binding) {
+        if let Ok(mut guard) = self.bindings.lock() {
+            let uuids = binding.uuid().to_hyphenated().to_string();
+            let binding = Arc::new(binding);
+            guard.insert(uuids.clone(), binding.clone());
+
+            //XXX do we need to keep track of the handle?
+            let handle = self
+                .server
+                .add_node(
+                    oscquery::node::Container::new(uuids, None)
+                        .expect("to construct binding")
+                        .into(),
+                    Some(self.bindings_handle),
+                )
+                .expect("to add node");
+            /*
+            let typ = self
+                .server
+                .add_node(
+                    oscquery::node::Get::new(uuids, Some("xsched scheduler graph".into()))
+                        .expect("to construct binding")
+                        .into(),
+                    Some(self.bindings_handle),
+                )
+                .expect("to add node");
+            */
+        }
     }
 }

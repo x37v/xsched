@@ -76,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     impl ParamGet {
                         //TODO transform and return output?
-                        pub fn unbind(&mut self) {
+                        pub fn unbind(&self) {
                             match self {
                                 #(#unbind),*
                             }
@@ -84,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     impl ParamSet {
                         //TODO transform and return output?
-                        pub fn unbind(&mut self) {
+                        pub fn unbind(&self) {
                             match self {
                                 #(#unbind),*
                             }
@@ -108,17 +108,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let s = format_ident!("as_{}_set", fname);
             let i = format_ident!("{}", var);
             try_bind_variants.push(quote! {
-                ParamAccess::Get(ParamGet::#i(p)) => {
+                ParamAccess::Get { get: ParamGet::#i(p), binding: b } => {
                     if let Some(g) = binding.#g() {
+                        let mut l = b.lock();
                         p.bind(g);
+                        l.replace(binding);
                         Ok(())
                     } else {
                         Err(BindingError::NoGet)
                     }
                 }
-                ParamAccess::Set(ParamSet::#i(p)) => {
+                ParamAccess::Set { set: ParamSet::#i(p), binding: b } => {
                     if let Some(s) = binding.#s() {
+                        let mut l = b.lock();
                         p.bind(s);
+                        l.replace(binding);
                         Ok(())
                     } else {
                         Err(BindingError::NoSet)
@@ -130,11 +134,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let s = format_ident!("as_{}_set", ofname);
                 let oi = format_ident!("{}", ovar);
                 try_bind_variants.push(quote! {
-                    ParamAccess::GetSet(ParamGet::#i(pg), ParamSet::#oi(ps)) => {
+                    ParamAccess::GetSet { get: ParamGet::#i(pg), set: ParamSet::#oi(ps), binding: b } => {
                         if let Some(g) = binding.#g() {
                             if let Some(s) = binding.#s() {
+                                let mut l = b.lock();
                                 pg.bind(g);
                                 ps.bind(s);
+                                l.replace(binding);
                                 Ok(())
                             } else {
                                 Err(BindingError::NoSet)
@@ -230,26 +236,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         params_file.write_all(
             quote! {
-                impl ParamAccessWithUUID {
+                impl ParamAccess {
                     fn as_get(&self) -> Option<&ParamGet> {
-                        match &self.access {
-                            ParamAccess::Get(m) => Some(m),
-                            ParamAccess::Set(_) => None,
-                            ParamAccess::GetSet(m, _) => Some(m),
+                        match self {
+                            Self::Get { get: g, .. } => Some(g),
+                            Self::Set { .. } => None,
+                            Self::GetSet { get: g, .. } => Some(g),
                         }
                     }
 
                     fn as_set(&self) -> Option<&ParamSet> {
-                        match &self.access {
-                            ParamAccess::Get(_) => None,
-                            ParamAccess::Set(m) => Some(m),
-                            ParamAccess::GetSet(_, m) => Some(m),
+                        match self {
+                            Self::Get { .. } => None,
+                            Self::Set { set: s, .. } => Some(s),
+                            Self::GetSet { set: s, .. } => Some(s),
+                        }
+                    }
+
+                    fn binding(&self) -> &Mutex<Option<Arc<Binding>>> {
+                        match self {
+                            Self::Get { binding: b, .. } => b,
+                            Self::Set { binding: b, .. } => b,
+                            Self::GetSet { binding: b, .. } => b,
                         }
                     }
 
                     /// Get the uuid of the bound param, if there is a binding.
                     pub fn uuid(&self) -> Option<uuid::Uuid> {
-                        self.uuid
+                        self.binding().lock().as_deref().map(|b| b.uuid().clone())
                     }
 
                     ///Get the type name for the contained `Get` value, if there is one.
@@ -275,22 +289,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     /// attempt to bind.
-                    pub fn try_bind(&mut self, binding: &Binding) -> Result<(), BindingError> {
-                        let b = match &self.access {
+                    pub fn try_bind(&self, binding: Arc<Binding>) -> Result<(), BindingError> {
+                        let b = match self {
                             #(#try_bind_variants)*
                         };
-                        if b.is_ok() {
-                            self.uuid = Some(binding.uuid());
-                        }
                         b
                     }
 
                     ///Get a `&str` representing the type of access: `"get", "set" or "getset"`
                     pub fn access_name(&self) -> &str {
-                        match &self.access {
-                            ParamAccess::Get(_) => "get",
-                            ParamAccess::Set(_) => "set",
-                            ParamAccess::GetSet(_, _) => "getset",
+                        match self {
+                            ParamAccess::Get{ .. } => "get",
+                            ParamAccess::Set{ .. } => "set",
+                            ParamAccess::GetSet { .. } => "getset",
                         }
                     }
                 }

@@ -5,19 +5,33 @@ use sched::{
         bpm::ClockData,
         swap::{BindingSwapGet, BindingSwapSet},
     },
+    mutex::Mutex,
     tick::{TickResched, TickSched},
     Float,
 };
-use std::collections::{hash_map::Keys, HashMap};
+use std::{
+    collections::{hash_map::Keys, HashMap},
+    sync::Arc,
+};
 
 //pull in the codegen
 include!(concat!(env!("OUT_DIR"), "/param.rs"));
 
 /// Parameters with their access.
 pub enum ParamAccess {
-    Get(ParamGet),
-    Set(ParamSet),
-    GetSet(ParamGet, ParamSet),
+    Get {
+        get: ParamGet,
+        binding: Mutex<Option<Arc<Binding>>>,
+    },
+    Set {
+        set: ParamSet,
+        binding: Mutex<Option<Arc<Binding>>>,
+    },
+    GetSet {
+        get: ParamGet,
+        set: ParamSet,
+        binding: Mutex<Option<Arc<Binding>>>,
+    },
 }
 
 /// Errors in binding parameters.
@@ -31,20 +45,14 @@ pub enum BindingError {
     NoSet,
 }
 
-/// A helper struct that simply associates a param with a uuid
-pub struct ParamAccessWithUUID {
-    pub access: ParamAccess,
-    pub uuid: Option<uuid::Uuid>,
-}
-
 #[derive(Default)]
 pub struct ParamHashMap {
-    inner: HashMap<&'static str, ParamAccessWithUUID>,
+    inner: HashMap<&'static str, ParamAccess>,
 }
 
 impl ParamHashMap {
     ///Get the param keys.
-    pub fn keys(&self) -> Keys<'_, &'static str, ParamAccessWithUUID> {
+    pub fn keys(&self) -> Keys<'_, &'static str, ParamAccess> {
         self.inner.keys()
     }
 
@@ -86,23 +94,38 @@ impl ParamHashMap {
         }
     }
 
-    pub fn unbind(&mut self, name: &str) {
-        if let Some(param) = self.inner.get_mut(name) {
-            match &mut param.access {
-                ParamAccess::Get(g) => g.unbind(),
-                ParamAccess::Set(s) => s.unbind(),
-                ParamAccess::GetSet(g, s) => {
+    pub fn unbind(&self, name: &str) -> Option<Arc<Binding>> {
+        if let Some(param) = self.inner.get(name) {
+            match param {
+                ParamAccess::Get { get: g, binding: b } => {
+                    let mut l = b.lock();
+                    g.unbind();
+                    l.take()
+                }
+                ParamAccess::Set { set: s, binding: b } => {
+                    let mut l = b.lock();
+                    s.unbind();
+                    l.take()
+                }
+                ParamAccess::GetSet {
+                    get: g,
+                    set: s,
+                    binding: b,
+                } => {
+                    let mut l = b.lock();
                     g.unbind();
                     s.unbind();
+                    l.take()
                 }
             }
-            param.uuid = None;
+        } else {
+            None
         }
     }
 
     ///Bind the parameter with the give `name` to the given `binding`.
-    pub fn try_bind(&mut self, name: &str, binding: &Binding) -> Result<(), BindingError> {
-        if let Some(param) = self.inner.get_mut(name) {
+    pub fn try_bind(&self, name: &str, binding: Arc<Binding>) -> Result<(), BindingError> {
+        if let Some(param) = self.inner.get(name) {
             param.try_bind(binding)
         } else {
             Err(BindingError::KeyMissing)
@@ -112,31 +135,33 @@ impl ParamHashMap {
     ///Insert a parameter into the mapping, it should be unbound
     pub(crate) fn insert_unbound(&mut self, name: &'static str, param: ParamAccess) {
         //XXX assert unbound and no collision
-        self.inner.insert(
-            name,
-            crate::param::ParamAccessWithUUID {
-                access: param,
-                uuid: None,
-            },
-        );
+        self.inner.insert(name, param);
     }
 }
 
-impl From<HashMap<&'static str, ParamAccess>> for ParamHashMap {
-    fn from(params: HashMap<&'static str, ParamAccess>) -> Self {
-        Self {
-            inner: params
-                .into_iter()
-                .map(|(k, v)| {
-                    (
-                        k,
-                        ParamAccessWithUUID {
-                            access: v,
-                            uuid: None,
-                        },
-                    )
-                })
-                .collect(),
+impl ParamAccess {
+    ///Create a new unbound `Get`.
+    pub fn new_get(get: ParamGet) -> Self {
+        Self::Get {
+            get,
+            binding: Default::default(),
+        }
+    }
+
+    ///Create a new unbound `Set`.
+    pub fn new_set(set: ParamSet) -> Self {
+        Self::Set {
+            set,
+            binding: Default::default(),
+        }
+    }
+
+    ///Create a new unbound `GetSet`.
+    pub fn new_getset(get: ParamGet, set: ParamSet) -> Self {
+        Self::GetSet {
+            get,
+            set,
+            binding: Default::default(),
         }
     }
 }

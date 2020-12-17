@@ -80,9 +80,10 @@ impl GraphItem {
         let mut params = params.into();
         params.insert_unbound(
             &"child_exec_index",
-            crate::param::ParamAccess::Set(crate::param::ParamSet::USize(
-                children.lock().index_binding(),
-            )),
+            crate::param::ParamAccess::Set {
+                set: crate::param::ParamSet::USize(children.lock().index_binding()),
+                binding: Default::default(),
+            },
         );
         Self::Node {
             type_name,
@@ -114,9 +115,10 @@ impl GraphItem {
         let mut params = params.into();
         params.insert_unbound(
             &"child_exec_index",
-            crate::param::ParamAccess::Set(crate::param::ParamSet::USize(
-                children.lock().index_binding(),
-            )),
+            crate::param::ParamAccess::Set {
+                set: crate::param::ParamSet::USize(children.lock().index_binding()),
+                binding: Default::default(),
+            },
         );
         Self::Root {
             type_name,
