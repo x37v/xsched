@@ -28,11 +28,6 @@ pub enum ParamAccess {
         set: ParamSet,
         binding: Mutex<Option<Arc<Instance>>>,
     },
-    GetSet {
-        get: ParamGet,
-        set: ParamSet,
-        binding: Mutex<Option<Arc<Instance>>>,
-    },
 }
 
 /// Errors in binding parameters.
@@ -66,21 +61,10 @@ impl ParamHashMap {
         }
     }
 
-    /// Get the 'get' type name for the parameter with `name`, if there is a param and if it has a
-    /// get.
-    pub fn type_name_get(&self, name: &str) -> Option<&'static str> {
+    /// Get the daat type name for the parameter with `name`, if there is a param.
+    pub fn data_type_name(&self, name: &str) -> Option<&'static str> {
         if let Some(param) = self.inner.get(name) {
-            param.type_name_get()
-        } else {
-            None
-        }
-    }
-
-    /// Get the 'set' type name for the parameter with `name`, if there is a param and if it has a
-    /// set.
-    pub fn type_name_set(&self, name: &str) -> Option<&'static str> {
-        if let Some(param) = self.inner.get(name) {
-            param.type_name_set()
+            Some(param.data_type_name())
         } else {
             None
         }
@@ -105,16 +89,6 @@ impl ParamHashMap {
                 }
                 ParamAccess::Set { set: s, binding: b } => {
                     let mut l = b.lock();
-                    s.unbind();
-                    l.take()
-                }
-                ParamAccess::GetSet {
-                    get: g,
-                    set: s,
-                    binding: b,
-                } => {
-                    let mut l = b.lock();
-                    g.unbind();
                     s.unbind();
                     l.take()
                 }
@@ -158,15 +132,6 @@ impl ParamAccess {
     ///Create a new unbound `Set`.
     pub fn new_set(set: ParamSet) -> Self {
         Self::Set {
-            set,
-            binding: Default::default(),
-        }
-    }
-
-    ///Create a new unbound `GetSet`.
-    pub fn new_getset(get: ParamGet, set: ParamSet) -> Self {
-        Self::GetSet {
-            get,
             set,
             binding: Default::default(),
         }

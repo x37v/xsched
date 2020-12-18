@@ -13,11 +13,6 @@ use std::sync::Arc;
 include!(concat!(env!("OUT_DIR"), "/binding.rs"));
 
 /// Bindings with their access.
-pub enum Access {
-    Get(Get),
-    Set(Set),
-    GetSet(Get, Set),
-}
 
 /// An instance of a typed datum or operation.
 pub struct Instance {
@@ -48,11 +43,13 @@ impl Instance {
 
     ///Get a `&str` representing the type of access: `"get", "set" or "getset"`
     pub fn access_name(&self) -> &'static str {
-        match &self.binding {
-            Access::Get(_) => "get",
-            Access::Set(_) => "set",
-            Access::GetSet(_, _) => "getset",
-        }
+        //XXX
+        &"TODO"
+        //match &self.binding {
+        //Access::Get(_) => "get",
+        //Access::Set(_) => "set",
+        //Access::GetSet(_) => "getset",
+        //}
     }
 
     ///Get a reference to the parameters for this binding.
@@ -79,22 +76,20 @@ mod tests {
             HashMap::new(),
         ));
         assert_eq!("get", g.access_name());
-        assert_eq!(Some("usize"), g.type_name_get());
-        assert_eq!(None, g.type_name_set());
         assert_eq!("value", g.type_name());
+        assert_eq!("usize", g.data_type_name());
 
         let a = Arc::new(AtomicUsize::new(0));
         let s = Arc::new(Instance::new(
             &"value",
-            Access::GetSet(
-                Get::USize(Arc::new(a.clone() as Arc<dyn ParamBindingGet<usize>>)),
-                Set::USize(Arc::new(a.clone() as Arc<dyn ParamBindingSet<usize>>)),
-            ),
+            Access::GetSetUSize {
+                get: Arc::new(a.clone() as Arc<dyn ParamBindingGet<usize>>),
+                set: Arc::new(a.clone() as Arc<dyn ParamBindingSet<usize>>),
+            },
             HashMap::new(),
         ));
         assert_eq!("getset", s.access_name());
-        assert_eq!(Some("usize"), s.type_name_get());
-        assert_eq!(Some("usize"), s.type_name_set());
+        assert_eq!("usize", s.data_type_name());
 
         assert_eq!(
             Err(BindingError::KeyMissing),
@@ -132,13 +127,11 @@ mod tests {
         assert_eq!(Some("get"), max.params().access_name("right"));
         assert_eq!(None, max.params().access_name("bill"));
 
-        assert_eq!(Some("usize"), max.params().type_name_get("left"));
-        assert_eq!(Some("usize"), max.params().type_name_get("right"));
-        assert_eq!(None, max.params().type_name_set("left"));
-        assert_eq!(None, max.params().type_name_set("right"));
+        assert_eq!(Some("usize"), max.params().data_type_name("left"));
+        assert_eq!(Some("usize"), max.params().data_type_name("right"));
 
-        assert_eq!(None, max.params().type_name_get("bill"));
-        assert_eq!(None, max.params().type_name_set("bill"));
+        assert_eq!(None, max.params().type_name("bill"));
+        assert_eq!(None, max.params().type_name("bill"));
 
         let keys: Vec<&'static str> = max.params().keys().into_iter().map(|k| k.clone()).collect();
 
@@ -147,8 +140,7 @@ mod tests {
         assert!(keys.contains(&"right"));
 
         assert_eq!("get", max.access_name());
-        assert_eq!(Some("usize"), max.type_name_get());
-        assert_eq!(None, max.type_name_set());
+        assert_eq!("usize", max.data_type_name());
 
         let get_max = max.as_usize_get();
         assert!(max.as_bool_get().is_none());
@@ -160,10 +152,10 @@ mod tests {
         let left = Arc::new(AtomicUsize::new(1));
         let left = Arc::new(Instance::new(
             &"value",
-            Access::GetSet(
-                Get::USize(Arc::new(left.clone() as Arc<dyn ParamBindingGet<usize>>)),
-                Set::USize(Arc::new(left.clone() as Arc<dyn ParamBindingSet<usize>>)),
-            ),
+            Access::GetSetUSize {
+                get: Arc::new(left.clone() as Arc<dyn ParamBindingGet<usize>>),
+                set: Arc::new(left.clone() as Arc<dyn ParamBindingSet<usize>>),
+            },
             HashMap::new(),
         ));
         assert_eq!(None, max.params().uuid(&"left"));
@@ -174,10 +166,10 @@ mod tests {
         let right = Arc::new(AtomicUsize::new(2));
         let right = Arc::new(Instance::new(
             &"value",
-            Access::GetSet(
-                Get::USize(Arc::new(right.clone() as Arc<dyn ParamBindingGet<usize>>)),
-                Set::USize(Arc::new(right.clone() as Arc<dyn ParamBindingSet<usize>>)),
-            ),
+            Access::GetSetUSize {
+                get: Arc::new(right.clone() as Arc<dyn ParamBindingGet<usize>>),
+                set: Arc::new(right.clone() as Arc<dyn ParamBindingSet<usize>>),
+            },
             HashMap::new(),
         ));
         assert_eq!(None, max.params().uuid(&"right"));

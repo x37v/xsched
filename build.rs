@@ -22,21 +22,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ("TickSched", "tick_sched", "TickSched"),
         ];
 
-        //build out Get, Set, ParamGet and ParamSet
+        //build out Get, Set, GetSet, ParamGet and ParamSet
         {
-            let mut get = Vec::new();
-            let mut set = Vec::new();
+            let mut access = Vec::new();
             let mut pget = Vec::new();
             let mut pset = Vec::new();
             let mut unbind = Vec::new();
             for v in variants.iter() {
                 let i = format_ident!("{}", v.0);
                 let t = format_ident!("{}", v.2);
-                get.push(quote! {
-                    #i(Arc<dyn ParamBindingGet<#t>>)
-                });
-                set.push(quote! {
-                    #i(Arc<dyn ParamBindingSet<#t>>)
+
+                let g = format_ident!("Get{}", v.0);
+                let s = format_ident!("Set{}", v.0);
+                let gs = format_ident!("GetSet{}", v.0);
+
+                access.push(quote! {
+                    #g(Arc<dyn ParamBindingGet<#t>>),
+                    #s(Arc<dyn ParamBindingSet<#t>>),
+                    #gs { get: Arc<dyn ParamBindingGet<#t>>, set: Arc<dyn ParamBindingSet<#t>>}
                 });
                 pget.push(quote! {
                     #i(::std::sync::Arc<BindingSwapGet<#t>>)
@@ -52,13 +55,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             bindings_file.write_all(
                 quote! {
-                    /// Get bindings.
-                    pub enum Get {
-                        #(#get),*
-                    }
-                    /// Set bindings.
-                    pub enum Set {
-                        #(#set),*
+                    /// Operations/data and their access.
+                    pub enum Access {
+                        #(#access),*
                     }
                 }
                 .to_string()
@@ -129,29 +128,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             });
-            //build up GetSet, with get from the curent, and set from each of the variants
-            for (ovar, ofname, _) in variants.iter() {
-                let s = format_ident!("as_{}_set", ofname);
-                let oi = format_ident!("{}", ovar);
-                try_bind_variants.push(quote! {
-                    ParamAccess::GetSet { get: ParamGet::#i(pg), set: ParamSet::#oi(ps), binding: b } => {
-                        if let Some(g) = binding.#g() {
-                            if let Some(s) = binding.#s() {
-                                let mut l = b.lock();
-                                pg.bind(g);
-                                ps.bind(s);
-                                l.replace(binding);
-                                Ok(())
-                            } else {
-                                Err(BindingError::NoSet)
-                            }
-                        } else {
-                            Err(BindingError::NoGet)
-                        }
-                    }
-                });
-            }
-
             //build up get and set
             param_type_name_get_variants.push(quote! {
                 ParamGet::#i(_) => #fname
@@ -172,16 +148,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             binding_typed_getset.push(quote! {
                 pub fn #get_ident(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#type_ident>>> {
+                    /*
                     match self.as_get() {
                         Some(Get::#i(o)) => Some(o.clone()),
                         _ => None,
                     }
+                    */
+                    None
                 }
                 pub fn #set_ident(&self) -> Option<std::sync::Arc<dyn ParamBindingSet<#type_ident>>> {
+                    /*
                     match self.as_set() {
                         Some(Set::#i(o)) => Some(o.clone()),
                         _ => None,
                     }
+                    */
+                    None
                 }
             });
         }
@@ -192,41 +174,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     #(#binding_typed_getset)*
 
+                    /*
                     fn as_get(&self) -> Option<&Get> {
                         match &self.binding {
                             Access::Get(m) => Some(m),
                             Access::Set(_) => None,
-                            Access::GetSet(m, _) => Some(m),
+                            Access::GetSet(_) => None, //TODO
                         }
                     }
                     fn as_set(&self) -> Option<&Set> {
                         match &self.binding {
                             Access::Get(_) => None,
                             Access::Set(m) => Some(m),
-                            Access::GetSet(_, m) => Some(m),
+                            Access::GetSet(_) => None, //TODO
                         }
                     }
+                    */
 
-                    ///Get the type name for the contained `Get` value, if there is one.
-                    pub fn type_name_get(&self) -> Option<&'static str> {
-                        if let Some(g) = self.as_get() {
-                            Some(match g {
-                                #(#binding_type_name_get_variants,)*
-                            })
-                        } else {
-                            None
-                        }
-                    }
-
-                    ///Get the type name for the contained `Set` value, if there is one.
-                    pub fn type_name_set(&self) -> Option<&'static str> {
-                        if let Some(s) = self.as_set() {
-                            Some(match s {
-                                #(#binding_type_name_set_variants,)*
-                            })
-                        } else {
-                            None
-                        }
+                    pub fn data_type_name(&self) -> &'static str {
+                        //XXX
+                        &"TODO"
                     }
                 }
             }
@@ -241,7 +208,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         match self {
                             Self::Get { get: g, .. } => Some(g),
                             Self::Set { .. } => None,
-                            Self::GetSet { get: g, .. } => Some(g),
                         }
                     }
 
@@ -249,7 +215,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         match self {
                             Self::Get { .. } => None,
                             Self::Set { set: s, .. } => Some(s),
-                            Self::GetSet { set: s, .. } => Some(s),
                         }
                     }
 
@@ -257,7 +222,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         match self {
                             Self::Get { binding: b, .. } => b,
                             Self::Set { binding: b, .. } => b,
-                            Self::GetSet { binding: b, .. } => b,
                         }
                     }
 
@@ -266,26 +230,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         self.binding().lock().as_deref().map(|b| b.uuid().clone())
                     }
 
-                    ///Get the type name for the contained `Get` value, if there is one.
-                    pub fn type_name_get(&self) -> Option<&'static str> {
-                        if let Some(g) = self.as_get() {
-                            Some(match g {
-                                #(#param_type_name_get_variants,)*
-                            })
-                        } else {
-                            None
-                        }
-                    }
-
-                    ///Get the type name for the contained `Set` value, if there is one.
-                    pub fn type_name_set(&self) -> Option<&'static str> {
-                        if let Some(g) = self.as_set() {
-                            Some(match g {
-                                #(#param_type_name_set_variants,)*
-                            })
-                        } else {
-                            None
-                        }
+                    pub fn data_type_name(&self) -> &'static str {
+                        //XXX
+                        &"TODO"
                     }
 
                     /// attempt to bind.
@@ -301,7 +248,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         match self {
                             ParamAccess::Get{ .. } => "get",
                             ParamAccess::Set{ .. } => "set",
-                            ParamAccess::GetSet { .. } => "getset",
                         }
                     }
                 }

@@ -30,19 +30,17 @@ fn main() -> Result<(), std::io::Error> {
     let server = OSCQueryHandler::new(bindings, graph)?;
     server.add_binding(Instance::new(
         &"value",
-        xsched::binding::Access::Get(xsched::binding::Get::USize(Arc::new(Arc::new(
-            std::sync::atomic::AtomicUsize::new(0),
-        )
-            as Arc<dyn ParamBindingGet<usize>>))),
+        xsched::binding::Access::GetUSize(
+            Arc::new(std::sync::atomic::AtomicUsize::new(0)) as Arc<dyn ParamBindingGet<usize>>
+        ),
         HashMap::new(),
     ));
 
     server.add_binding(Instance::new(
         &"value",
-        xsched::binding::Access::Get(xsched::binding::Get::ISize(Arc::new(Arc::new(
-            std::sync::atomic::AtomicIsize::new(-2),
-        )
-            as Arc<dyn ParamBindingGet<isize>>))),
+        xsched::binding::Access::GetISize(
+            Arc::new(std::sync::atomic::AtomicIsize::new(-2)) as Arc<dyn ParamBindingGet<isize>>
+        ),
         HashMap::new(),
     ));
 

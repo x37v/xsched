@@ -102,15 +102,11 @@ impl OSCQueryHandler {
                 .add_node(
                     oscquery::node::Get::new(
                         "type".to_string(),
-                        Some(
-                            "binding_type name, access type name, get type name, set type name"
-                                .into(),
-                        ),
+                        Some("binding_type name, access type name, data type name".into()),
                         vec![
                             binding.type_name(),
                             binding.access_name(),
-                            binding.type_name_get().unwrap_or(&""),
-                            binding.type_name_set().unwrap_or(&""),
+                            binding.data_type_name(),
                         ]
                         .into_iter()
                         .map(|v| ParamGet::String(ValueBuilder::new(Arc::new(v) as _).build())),
@@ -120,6 +116,8 @@ impl OSCQueryHandler {
                     Some(handle),
                 )
                 .expect("to add node");
+            //XXX codegen Get/Set from Binding
+            //XXX do params
         }
     }
 }
