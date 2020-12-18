@@ -23,7 +23,7 @@ pub struct Instance {
 }
 
 impl Instance {
-    /// Create a new binding
+    /// Create a new binding instance.
     pub fn new<P: Into<ParamHashMap>>(type_name: &'static str, binding: Access, params: P) -> Self {
         Self {
             binding,
@@ -33,24 +33,27 @@ impl Instance {
         }
     }
 
+    /// Get the unique identifier for this binding instance.
     pub fn uuid(&self) -> uuid::Uuid {
         self.uuid
     }
 
+    /// Get the type name for this binding instance, for example `&"cast"` or `&"const"`.
     pub fn type_name(&self) -> &'static str {
         self.type_name
     }
 
+    /// Get the data type name for this binding instance, for example `&"usize"` or `&"Float"`.
     pub fn data_type_name(&self) -> &'static str {
         self.binding.data_type_name()
     }
 
-    ///Get a `&str` representing the type of access: `"get", "set" or "getset"`
+    /// Get the access name for this binding instance: `"get", "set" or "getset"`
     pub fn access_name(&self) -> &'static str {
         self.binding.access_name()
     }
 
-    ///Get a reference to the parameters for this binding.
+    /// Get a reference to the parameters for this binding.
     pub fn params(&self) -> &ParamHashMap {
         &self.params
     }
