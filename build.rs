@@ -24,7 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         //build out Get, Set, GetSet, ParamGet and ParamSet
         {
-            let mut access = Vec::new();
+            let mut access_variants = Vec::new();
+            let mut access_data_type_name = Vec::new();
+            let mut access_access_name = Vec::new();
+
             let mut pget = Vec::new();
             let mut pset = Vec::new();
             let mut unbind = Vec::new();
@@ -36,10 +39,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let s = format_ident!("{}Set", v.0);
                 let gs = format_ident!("{}GetSet", v.0);
 
-                access.push(quote! {
+                let tname = v.2;
+
+                access_variants.push(quote! {
                     #g(Arc<dyn ParamBindingGet<#t>>),
                     #s(Arc<dyn ParamBindingSet<#t>>),
-                    #gs { get: Arc<dyn ParamBindingGet<#t>>, set: Arc<dyn ParamBindingSet<#t>>}
+                    #gs { get: Arc<dyn ParamBindingGet<#t>>, set: Arc<dyn ParamBindingSet<#t>> }
+                });
+
+                //get the data type name
+                access_data_type_name.push(quote! {
+                    Self::#g(..) => &#tname,
+                    Self::#s(..) => &#tname,
+                    Self::#gs { .. } => &#tname
+                });
+                //get the access name
+                access_access_name.push(quote! {
+                    Self::#g(..) => &"get",
+                    Self::#s(..) => &"set",
+                    Self::#gs { .. } => &"getset"
                 });
                 pget.push(quote! {
                     #i(::std::sync::Arc<BindingSwapGet<#t>>)
@@ -57,7 +75,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 quote! {
                     /// Operations/data and their access.
                     pub enum Access {
-                        #(#access),*
+                        #(#access_variants),*
+                    }
+                    impl Access {
+                        pub fn access_name(&self) -> &'static str {
+                            match self {
+                                #(#access_access_name),*
+                            }
+                        }
+                        pub fn data_type_name(&self) -> &'static str {
+                            match self {
+                                #(#access_data_type_name),*
+                            }
+                        }
                     }
                 }
                 .to_string()
@@ -148,6 +178,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             binding_typed_getset.push(quote! {
                 pub fn #get_ident(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#type_ident>>> {
+                    //TODO
                     /*
                     match self.as_get() {
                         Some(Get::#i(o)) => Some(o.clone()),
@@ -157,6 +188,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     None
                 }
                 pub fn #set_ident(&self) -> Option<std::sync::Arc<dyn ParamBindingSet<#type_ident>>> {
+                    //TODO
                     /*
                     match self.as_set() {
                         Some(Set::#i(o)) => Some(o.clone()),
@@ -190,11 +222,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     */
-
-                    pub fn data_type_name(&self) -> &'static str {
-                        //XXX
-                        &"TODO"
-                    }
                 }
             }
             .to_string()

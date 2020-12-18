@@ -41,15 +41,13 @@ impl Instance {
         self.type_name
     }
 
+    pub fn data_type_name(&self) -> &'static str {
+        self.binding.data_type_name()
+    }
+
     ///Get a `&str` representing the type of access: `"get", "set" or "getset"`
     pub fn access_name(&self) -> &'static str {
-        //XXX
-        &"TODO"
-        //match &self.binding {
-        //Access::Get(_) => "get",
-        //Access::Set(_) => "set",
-        //Access::GetSet(_) => "getset",
-        //}
+        self.binding.access_name()
     }
 
     ///Get a reference to the parameters for this binding.
