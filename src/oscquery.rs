@@ -14,8 +14,8 @@ pub struct OSCQueryHandler {
 
 impl OSCQueryHandler {
     pub fn new(
-        bindings: HashMap<String, Binding>,
-        graph: HashMap<String, GraphItem>,
+        _bindings: HashMap<String, Binding>,
+        _graph: HashMap<String, GraphItem>,
     ) -> Result<Self, std::io::Error> {
         let server = OscQueryServer::new(
             Some("xsched".into()),
@@ -88,7 +88,7 @@ impl OSCQueryHandler {
             guard.insert(uuids.clone(), binding.clone());
 
             //XXX do we need to keep track of the handle?
-            let handle = self
+            let _handle = self
                 .server
                 .add_node(
                     oscquery::node::Container::new(uuids, None)

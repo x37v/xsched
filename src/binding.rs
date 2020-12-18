@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn can_create() {
-        let mut g = Arc::new(Binding::new(
+        let g = Arc::new(Binding::new(
             Access::Get(Get::USize(Arc::new(
                 Arc::new(AtomicUsize::new(0)) as Arc<dyn ParamBindingGet<usize>>
             ))),
@@ -73,7 +73,7 @@ mod tests {
         assert_eq!(None, g.set_type_name());
 
         let a = Arc::new(AtomicUsize::new(0));
-        let mut s = Arc::new(Binding::new(
+        let s = Arc::new(Binding::new(
             Access::GetSet(
                 Get::USize(Arc::new(a.clone() as Arc<dyn ParamBindingGet<usize>>)),
                 Set::USize(Arc::new(a.clone() as Arc<dyn ParamBindingSet<usize>>)),
@@ -107,7 +107,7 @@ mod tests {
         map.insert("left", ParamAccess::new_get(ParamGet::USize(lswap)));
         map.insert("right", ParamAccess::new_get(ParamGet::USize(rswap)));
 
-        let mut max = Binding::new(
+        let max = Binding::new(
             Access::Get(Get::USize(Arc::new(max as Arc<dyn ParamBindingGet<usize>>))),
             map,
         );

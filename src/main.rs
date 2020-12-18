@@ -4,8 +4,6 @@ use xsched::{
 
 use std::{
     collections::HashMap,
-    net::SocketAddr,
-    str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -28,7 +26,7 @@ fn main() -> Result<(), std::io::Error> {
 
     let sched = Sched::new();
     let _jack = Jack::new(sched);
-    let server = OSCQueryHandler::new(bindings, graph)?;
+    let _server = OSCQueryHandler::new(bindings, graph)?;
     while run.load(Ordering::Acquire) {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
