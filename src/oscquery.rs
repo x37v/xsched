@@ -1,5 +1,5 @@
 use crate::{binding::Instance, graph::GraphItem};
-use oscquery::{root::NodeHandle, OscQueryServer};
+use oscquery::{param::ParamGet, root::NodeHandle, value::ValueBuilder, OscQueryServer};
 use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
 
 pub struct OSCQueryHandler {
@@ -81,14 +81,14 @@ impl OSCQueryHandler {
         Ok(s)
     }
 
-    fn add_binding(&mut self, binding: Instance) {
+    pub fn add_binding(&self, binding: Instance) {
         if let Ok(mut guard) = self.bindings.lock() {
             let uuids = binding.uuid().to_hyphenated().to_string();
             let binding = Arc::new(binding);
             guard.insert(uuids.clone(), binding.clone());
 
             //XXX do we need to keep track of the handle?
-            let _handle = self
+            let handle = self
                 .server
                 .add_node(
                     oscquery::node::Container::new(uuids, None)
@@ -97,17 +97,29 @@ impl OSCQueryHandler {
                     Some(self.bindings_handle),
                 )
                 .expect("to add node");
-            /*
-            let typ = self
+            let _ = self
                 .server
                 .add_node(
-                    oscquery::node::Get::new(uuids, Some("xsched scheduler graph".into()))
-                        .expect("to construct binding")
-                        .into(),
-                    Some(self.bindings_handle),
+                    oscquery::node::Get::new(
+                        "type".to_string(),
+                        Some(
+                            "binding_type name, access type name, get type name, set type name"
+                                .into(),
+                        ),
+                        vec![
+                            binding.type_name(),
+                            binding.access_name(),
+                            binding.type_name_get().unwrap_or(&""),
+                            binding.type_name_set().unwrap_or(&""),
+                        ]
+                        .into_iter()
+                        .map(|v| ParamGet::String(ValueBuilder::new(Arc::new(v) as _).build())),
+                    )
+                    .expect("to construct binding")
+                    .into(),
+                    Some(handle),
                 )
                 .expect("to add node");
-            */
         }
     }
 }

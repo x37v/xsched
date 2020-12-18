@@ -1,3 +1,4 @@
+use sched::binding::ParamBindingGet;
 use xsched::{
     binding::Instance, graph::GraphItem, jack::Jack, oscquery::OSCQueryHandler, sched::Sched,
 };
@@ -26,7 +27,25 @@ fn main() -> Result<(), std::io::Error> {
 
     let sched = Sched::new();
     let _jack = Jack::new(sched);
-    let _server = OSCQueryHandler::new(bindings, graph)?;
+    let server = OSCQueryHandler::new(bindings, graph)?;
+    server.add_binding(Instance::new(
+        &"value",
+        xsched::binding::Access::Get(xsched::binding::Get::USize(Arc::new(Arc::new(
+            std::sync::atomic::AtomicUsize::new(0),
+        )
+            as Arc<dyn ParamBindingGet<usize>>))),
+        HashMap::new(),
+    ));
+
+    server.add_binding(Instance::new(
+        &"value",
+        xsched::binding::Access::Get(xsched::binding::Get::ISize(Arc::new(Arc::new(
+            std::sync::atomic::AtomicIsize::new(-2),
+        )
+            as Arc<dyn ParamBindingGet<isize>>))),
+        HashMap::new(),
+    ));
+
     while run.load(Ordering::Acquire) {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }

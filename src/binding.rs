@@ -47,7 +47,7 @@ impl Instance {
     }
 
     ///Get a `&str` representing the type of access: `"get", "set" or "getset"`
-    pub fn access_name(&self) -> &str {
+    pub fn access_name(&self) -> &'static str {
         match &self.binding {
             Access::Get(_) => "get",
             Access::Set(_) => "set",

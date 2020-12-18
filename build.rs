@@ -208,7 +208,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     ///Get the type name for the contained `Get` value, if there is one.
-                    pub fn type_name_get(&self) -> Option<&str> {
+                    pub fn type_name_get(&self) -> Option<&'static str> {
                         if let Some(g) = self.as_get() {
                             Some(match g {
                                 #(#binding_type_name_get_variants,)*
@@ -219,7 +219,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     ///Get the type name for the contained `Set` value, if there is one.
-                    pub fn type_name_set(&self) -> Option<&str> {
+                    pub fn type_name_set(&self) -> Option<&'static str> {
                         if let Some(s) = self.as_set() {
                             Some(match s {
                                 #(#binding_type_name_set_variants,)*
@@ -267,7 +267,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     ///Get the type name for the contained `Get` value, if there is one.
-                    pub fn type_name_get(&self) -> Option<&str> {
+                    pub fn type_name_get(&self) -> Option<&'static str> {
                         if let Some(g) = self.as_get() {
                             Some(match g {
                                 #(#param_type_name_get_variants,)*
@@ -278,7 +278,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     ///Get the type name for the contained `Set` value, if there is one.
-                    pub fn type_name_set(&self) -> Option<&str> {
+                    pub fn type_name_set(&self) -> Option<&'static str> {
                         if let Some(g) = self.as_set() {
                             Some(match g {
                                 #(#param_type_name_set_variants,)*
