@@ -188,7 +188,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         bindings_file.write_all(
             quote! {
-                impl Binding {
+                impl Instance {
 
                     #(#binding_typed_getset)*
 
@@ -253,7 +253,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
 
-                    fn binding(&self) -> &Mutex<Option<Arc<Binding>>> {
+                    fn binding(&self) -> &Mutex<Option<Arc<Instance>>> {
                         match self {
                             Self::Get { binding: b, .. } => b,
                             Self::Set { binding: b, .. } => b,
@@ -289,7 +289,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     /// attempt to bind.
-                    pub fn try_bind(&self, binding: Arc<Binding>) -> Result<(), BindingError> {
+                    pub fn try_bind(&self, binding: Arc<Instance>) -> Result<(), BindingError> {
                         let b = match self {
                             #(#try_bind_variants)*
                         };

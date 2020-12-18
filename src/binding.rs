@@ -1,3 +1,5 @@
+//! Data binding.
+
 use sched::{
     binding::{bpm::ClockData, ParamBindingGet, ParamBindingSet},
     tick::{TickResched, TickSched},
@@ -17,24 +19,31 @@ pub enum Access {
     GetSet(Get, Set),
 }
 
-pub struct Binding {
+/// An instance of a typed datum or operation.
+pub struct Instance {
     binding: Access,
     params: ParamHashMap,
     uuid: uuid::Uuid,
+    type_name: &'static str,
 }
 
-impl Binding {
+impl Instance {
     /// Create a new binding
-    pub fn new<P: Into<ParamHashMap>>(binding: Access, params: P) -> Self {
+    pub fn new<P: Into<ParamHashMap>>(type_name: &'static str, binding: Access, params: P) -> Self {
         Self {
             binding,
             params: params.into(),
             uuid: uuid::Uuid::new_v4(),
+            type_name,
         }
     }
 
     pub fn uuid(&self) -> uuid::Uuid {
         self.uuid
+    }
+
+    pub fn type_name(&self) -> &'static str {
+        self.type_name
     }
 
     ///Get a `&str` representing the type of access: `"get", "set" or "getset"`
@@ -62,7 +71,8 @@ mod tests {
 
     #[test]
     fn can_create() {
-        let g = Arc::new(Binding::new(
+        let g = Arc::new(Instance::new(
+            &"value",
             Access::Get(Get::USize(Arc::new(
                 Arc::new(AtomicUsize::new(0)) as Arc<dyn ParamBindingGet<usize>>
             ))),
@@ -71,9 +81,11 @@ mod tests {
         assert_eq!("get", g.access_name());
         assert_eq!(Some("usize"), g.type_name_get());
         assert_eq!(None, g.type_name_set());
+        assert_eq!("value", g.type_name());
 
         let a = Arc::new(AtomicUsize::new(0));
-        let s = Arc::new(Binding::new(
+        let s = Arc::new(Instance::new(
+            &"value",
             Access::GetSet(
                 Get::USize(Arc::new(a.clone() as Arc<dyn ParamBindingGet<usize>>)),
                 Set::USize(Arc::new(a.clone() as Arc<dyn ParamBindingSet<usize>>)),
@@ -107,7 +119,8 @@ mod tests {
         map.insert("left", ParamAccess::new_get(ParamGet::USize(lswap)));
         map.insert("right", ParamAccess::new_get(ParamGet::USize(rswap)));
 
-        let max = Binding::new(
+        let max = Instance::new(
+            &"value",
             Access::Get(Get::USize(Arc::new(max as Arc<dyn ParamBindingGet<usize>>))),
             map,
         );
@@ -145,7 +158,8 @@ mod tests {
         assert_eq!(0, get_max.get());
 
         let left = Arc::new(AtomicUsize::new(1));
-        let left = Arc::new(Binding::new(
+        let left = Arc::new(Instance::new(
+            &"value",
             Access::GetSet(
                 Get::USize(Arc::new(left.clone() as Arc<dyn ParamBindingGet<usize>>)),
                 Set::USize(Arc::new(left.clone() as Arc<dyn ParamBindingSet<usize>>)),
@@ -158,7 +172,8 @@ mod tests {
         assert_eq!(1, get_max.get());
 
         let right = Arc::new(AtomicUsize::new(2));
-        let right = Arc::new(Binding::new(
+        let right = Arc::new(Instance::new(
+            &"value",
             Access::GetSet(
                 Get::USize(Arc::new(right.clone() as Arc<dyn ParamBindingGet<usize>>)),
                 Set::USize(Arc::new(right.clone() as Arc<dyn ParamBindingSet<usize>>)),

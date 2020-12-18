@@ -1,5 +1,5 @@
 use xsched::{
-    binding::Binding, graph::GraphItem, jack::Jack, oscquery::OSCQueryHandler, sched::Sched,
+    binding::Instance, graph::GraphItem, jack::Jack, oscquery::OSCQueryHandler, sched::Sched,
 };
 
 use std::{
@@ -21,7 +21,7 @@ fn main() -> Result<(), std::io::Error> {
         .expect("Error setting Ctrl-C handler");
     }
 
-    let bindings: HashMap<String, Binding> = Default::default();
+    let bindings: HashMap<String, Arc<Instance>> = Default::default();
     let graph: HashMap<String, GraphItem> = Default::default();
 
     let sched = Sched::new();

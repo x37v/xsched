@@ -1,9 +1,9 @@
-use crate::{binding::Binding, graph::GraphItem};
+use crate::{binding::Instance, graph::GraphItem};
 use oscquery::{root::NodeHandle, OscQueryServer};
 use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
 
 pub struct OSCQueryHandler {
-    bindings: std::sync::Mutex<HashMap<String, Arc<Binding>>>,
+    bindings: std::sync::Mutex<HashMap<String, Arc<Instance>>>,
     graph: std::sync::Mutex<HashMap<String, Arc<GraphItem>>>,
     server: OscQueryServer,
     xsched_handle: NodeHandle,
@@ -14,7 +14,7 @@ pub struct OSCQueryHandler {
 
 impl OSCQueryHandler {
     pub fn new(
-        _bindings: HashMap<String, Binding>,
+        _bindings: HashMap<String, Arc<Instance>>,
         _graph: HashMap<String, GraphItem>,
     ) -> Result<Self, std::io::Error> {
         let server = OscQueryServer::new(
@@ -81,7 +81,7 @@ impl OSCQueryHandler {
         Ok(s)
     }
 
-    fn add_binding(&mut self, binding: Binding) {
+    fn add_binding(&mut self, binding: Instance) {
         if let Ok(mut guard) = self.bindings.lock() {
             let uuids = binding.uuid().to_hyphenated().to_string();
             let binding = Arc::new(binding);

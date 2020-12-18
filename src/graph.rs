@@ -166,13 +166,4 @@ impl GraphItem {
             Self::Leaf { params, .. } => params,
         }
     }
-
-    ///Get a mut reference to the parameters for this item.
-    pub fn params_mut(&mut self) -> &ParamHashMap {
-        match self {
-            Self::Root { params, .. } => params,
-            Self::Node { params, .. } => params,
-            Self::Leaf { params, .. } => params,
-        }
-    }
 }

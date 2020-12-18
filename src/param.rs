@@ -1,5 +1,6 @@
-//! Parameters
-use crate::binding::Binding;
+//! Parameters: named typed bindings.
+
+use crate::binding::Instance;
 use sched::{
     binding::{
         bpm::ClockData,
@@ -21,16 +22,16 @@ include!(concat!(env!("OUT_DIR"), "/param.rs"));
 pub enum ParamAccess {
     Get {
         get: ParamGet,
-        binding: Mutex<Option<Arc<Binding>>>,
+        binding: Mutex<Option<Arc<Instance>>>,
     },
     Set {
         set: ParamSet,
-        binding: Mutex<Option<Arc<Binding>>>,
+        binding: Mutex<Option<Arc<Instance>>>,
     },
     GetSet {
         get: ParamGet,
         set: ParamSet,
-        binding: Mutex<Option<Arc<Binding>>>,
+        binding: Mutex<Option<Arc<Instance>>>,
     },
 }
 
@@ -94,7 +95,7 @@ impl ParamHashMap {
         }
     }
 
-    pub fn unbind(&self, name: &str) -> Option<Arc<Binding>> {
+    pub fn unbind(&self, name: &str) -> Option<Arc<Instance>> {
         if let Some(param) = self.inner.get(name) {
             match param {
                 ParamAccess::Get { get: g, binding: b } => {
@@ -124,7 +125,7 @@ impl ParamHashMap {
     }
 
     ///Bind the parameter with the give `name` to the given `binding`.
-    pub fn try_bind(&self, name: &str, binding: Arc<Binding>) -> Result<(), BindingError> {
+    pub fn try_bind(&self, name: &str, binding: Arc<Instance>) -> Result<(), BindingError> {
         if let Some(param) = self.inner.get(name) {
             param.try_bind(binding)
         } else {
