@@ -70,9 +70,9 @@ mod tests {
     fn can_create() {
         let g = Arc::new(Instance::new(
             &"value",
-            Access::Get(Get::USize(Arc::new(
+            Access::USizeGet(Arc::new(
                 Arc::new(AtomicUsize::new(0)) as Arc<dyn ParamBindingGet<usize>>
-            ))),
+            )),
             HashMap::new(),
         ));
         assert_eq!("get", g.access_name());
@@ -82,7 +82,7 @@ mod tests {
         let a = Arc::new(AtomicUsize::new(0));
         let s = Arc::new(Instance::new(
             &"value",
-            Access::GetSetUSize {
+            Access::USizeGetSet {
                 get: Arc::new(a.clone() as Arc<dyn ParamBindingGet<usize>>),
                 set: Arc::new(a.clone() as Arc<dyn ParamBindingSet<usize>>),
             },
@@ -116,7 +116,7 @@ mod tests {
 
         let max = Instance::new(
             &"value",
-            Access::Get(Get::USize(Arc::new(max as Arc<dyn ParamBindingGet<usize>>))),
+            Access::USizeGet(Arc::new(max as Arc<dyn ParamBindingGet<usize>>)),
             map,
         );
         assert_eq!(None, s.params().uuid(&"left"));
@@ -152,7 +152,7 @@ mod tests {
         let left = Arc::new(AtomicUsize::new(1));
         let left = Arc::new(Instance::new(
             &"value",
-            Access::GetSetUSize {
+            Access::USizeGetSet {
                 get: Arc::new(left.clone() as Arc<dyn ParamBindingGet<usize>>),
                 set: Arc::new(left.clone() as Arc<dyn ParamBindingSet<usize>>),
             },
@@ -166,7 +166,7 @@ mod tests {
         let right = Arc::new(AtomicUsize::new(2));
         let right = Arc::new(Instance::new(
             &"value",
-            Access::GetSetUSize {
+            Access::USizeGetSet {
                 get: Arc::new(right.clone() as Arc<dyn ParamBindingGet<usize>>),
                 set: Arc::new(right.clone() as Arc<dyn ParamBindingSet<usize>>),
             },

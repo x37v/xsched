@@ -32,9 +32,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let i = format_ident!("{}", v.0);
                 let t = format_ident!("{}", v.2);
 
-                let g = format_ident!("Get{}", v.0);
-                let s = format_ident!("Set{}", v.0);
-                let gs = format_ident!("GetSet{}", v.0);
+                let g = format_ident!("{}Get", v.0);
+                let s = format_ident!("{}Set", v.0);
+                let gs = format_ident!("{}GetSet", v.0);
 
                 access.push(quote! {
                     #g(Arc<dyn ParamBindingGet<#t>>),
