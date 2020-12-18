@@ -139,6 +139,12 @@ impl ParamHashMap {
     }
 }
 
+impl From<HashMap<&'static str, ParamAccess>> for ParamHashMap {
+    fn from(params: HashMap<&'static str, ParamAccess>) -> Self {
+        Self { inner: params }
+    }
+}
+
 impl ParamAccess {
     ///Create a new unbound `Get`.
     pub fn new_get(get: ParamGet) -> Self {
