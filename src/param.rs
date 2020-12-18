@@ -67,9 +67,9 @@ impl ParamHashMap {
 
     /// Get the 'get' type name for the parameter with `name`, if there is a param and if it has a
     /// get.
-    pub fn get_type_name(&self, name: &str) -> Option<&str> {
+    pub fn type_name_get(&self, name: &str) -> Option<&str> {
         if let Some(param) = self.inner.get(name) {
-            param.get_type_name()
+            param.type_name_get()
         } else {
             None
         }
@@ -77,9 +77,9 @@ impl ParamHashMap {
 
     /// Get the 'set' type name for the parameter with `name`, if there is a param and if it has a
     /// set.
-    pub fn set_type_name(&self, name: &str) -> Option<&str> {
+    pub fn type_name_set(&self, name: &str) -> Option<&str> {
         if let Some(param) = self.inner.get(name) {
-            param.set_type_name()
+            param.type_name_set()
         } else {
             None
         }

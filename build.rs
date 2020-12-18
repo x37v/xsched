@@ -96,10 +96,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?;
         }
 
-        let mut param_get_type_name_variants = Vec::new();
-        let mut param_set_type_name_variants = Vec::new();
-        let mut binding_get_type_name_variants = Vec::new();
-        let mut binding_set_type_name_variants = Vec::new();
+        let mut param_type_name_get_variants = Vec::new();
+        let mut param_type_name_set_variants = Vec::new();
+        let mut binding_type_name_get_variants = Vec::new();
+        let mut binding_type_name_set_variants = Vec::new();
         let mut binding_typed_getset = Vec::new();
 
         let mut try_bind_variants = Vec::new();
@@ -153,16 +153,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             //build up get and set
-            param_get_type_name_variants.push(quote! {
+            param_type_name_get_variants.push(quote! {
                 ParamGet::#i(_) => #fname
             });
-            binding_get_type_name_variants.push(quote! {
+            binding_type_name_get_variants.push(quote! {
                 Get::#i(_) => #fname
             });
-            param_set_type_name_variants.push(quote! {
+            param_type_name_set_variants.push(quote! {
                 ParamSet::#i(_) => #fname
             });
-            binding_set_type_name_variants.push(quote! {
+            binding_type_name_set_variants.push(quote! {
                 Set::#i(_) => #fname
             });
 
@@ -208,10 +208,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     ///Get the type name for the contained `Get` value, if there is one.
-                    pub fn get_type_name(&self) -> Option<&str> {
+                    pub fn type_name_get(&self) -> Option<&str> {
                         if let Some(g) = self.as_get() {
                             Some(match g {
-                                #(#binding_get_type_name_variants,)*
+                                #(#binding_type_name_get_variants,)*
                             })
                         } else {
                             None
@@ -219,10 +219,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     ///Get the type name for the contained `Set` value, if there is one.
-                    pub fn set_type_name(&self) -> Option<&str> {
+                    pub fn type_name_set(&self) -> Option<&str> {
                         if let Some(s) = self.as_set() {
                             Some(match s {
-                                #(#binding_set_type_name_variants,)*
+                                #(#binding_type_name_set_variants,)*
                             })
                         } else {
                             None
@@ -267,10 +267,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     ///Get the type name for the contained `Get` value, if there is one.
-                    pub fn get_type_name(&self) -> Option<&str> {
+                    pub fn type_name_get(&self) -> Option<&str> {
                         if let Some(g) = self.as_get() {
                             Some(match g {
-                                #(#param_get_type_name_variants,)*
+                                #(#param_type_name_get_variants,)*
                             })
                         } else {
                             None
@@ -278,10 +278,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     ///Get the type name for the contained `Set` value, if there is one.
-                    pub fn set_type_name(&self) -> Option<&str> {
+                    pub fn type_name_set(&self) -> Option<&str> {
                         if let Some(g) = self.as_set() {
                             Some(match g {
-                                #(#param_set_type_name_variants,)*
+                                #(#param_type_name_set_variants,)*
                             })
                         } else {
                             None

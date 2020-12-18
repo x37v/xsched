@@ -69,8 +69,8 @@ mod tests {
             HashMap::new(),
         ));
         assert_eq!("get", g.access_name());
-        assert_eq!(Some("usize"), g.get_type_name());
-        assert_eq!(None, g.set_type_name());
+        assert_eq!(Some("usize"), g.type_name_get());
+        assert_eq!(None, g.type_name_set());
 
         let a = Arc::new(AtomicUsize::new(0));
         let s = Arc::new(Binding::new(
@@ -81,8 +81,8 @@ mod tests {
             HashMap::new(),
         ));
         assert_eq!("getset", s.access_name());
-        assert_eq!(Some("usize"), s.get_type_name());
-        assert_eq!(Some("usize"), s.set_type_name());
+        assert_eq!(Some("usize"), s.type_name_get());
+        assert_eq!(Some("usize"), s.type_name_set());
 
         assert_eq!(
             Err(BindingError::KeyMissing),
@@ -119,13 +119,13 @@ mod tests {
         assert_eq!(Some("get"), max.params().access_name("right"));
         assert_eq!(None, max.params().access_name("bill"));
 
-        assert_eq!(Some("usize"), max.params().get_type_name("left"));
-        assert_eq!(Some("usize"), max.params().get_type_name("right"));
-        assert_eq!(None, max.params().set_type_name("left"));
-        assert_eq!(None, max.params().set_type_name("right"));
+        assert_eq!(Some("usize"), max.params().type_name_get("left"));
+        assert_eq!(Some("usize"), max.params().type_name_get("right"));
+        assert_eq!(None, max.params().type_name_set("left"));
+        assert_eq!(None, max.params().type_name_set("right"));
 
-        assert_eq!(None, max.params().get_type_name("bill"));
-        assert_eq!(None, max.params().set_type_name("bill"));
+        assert_eq!(None, max.params().type_name_get("bill"));
+        assert_eq!(None, max.params().type_name_set("bill"));
 
         let keys: Vec<&'static str> = max.params().keys().into_iter().map(|k| k.clone()).collect();
 
@@ -134,8 +134,8 @@ mod tests {
         assert!(keys.contains(&"right"));
 
         assert_eq!("get", max.access_name());
-        assert_eq!(Some("usize"), max.get_type_name());
-        assert_eq!(None, max.set_type_name());
+        assert_eq!(Some("usize"), max.type_name_get());
+        assert_eq!(None, max.type_name_set());
 
         let get_max = max.as_usize_get();
         assert!(max.as_bool_get().is_none());
