@@ -131,8 +131,8 @@ mod tests {
         assert_eq!(Some("usize"), max.params().data_type_name("left"));
         assert_eq!(Some("usize"), max.params().data_type_name("right"));
 
-        assert_eq!(None, max.params().type_name("bill"));
-        assert_eq!(None, max.params().type_name("bill"));
+        assert_eq!(None, max.params().data_type_name("bill"));
+        assert_eq!(None, max.params().data_type_name("bill"));
 
         let keys: Vec<&'static str> = max.params().keys().into_iter().map(|k| k.clone()).collect();
 
