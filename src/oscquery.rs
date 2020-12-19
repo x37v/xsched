@@ -102,7 +102,7 @@ impl OSCQueryHandler {
                 .add_node(
                     oscquery::node::Get::new(
                         "type".to_string(),
-                        Some("binding_type name, access type name, data type name".into()),
+                        Some("type_name, access_name, data_type_name".into()),
                         vec![
                             binding.type_name(),
                             binding.access_name(),
