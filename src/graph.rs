@@ -2,7 +2,7 @@
 
 use crate::{
     children::{ALockChildren, SwapChildren, SwapChildrenContainer},
-    param::ParamHashMap,
+    param::{ParamHashMap, ParamMapGet},
 };
 use sched::{
     graph::{node_wrapper::GraphNodeWrapper, GraphLeafExec, GraphNodeContainer, GraphNodeExec},
@@ -157,9 +157,11 @@ impl GraphItem {
             Self::Leaf { type_name, .. } => type_name,
         }
     }
+}
 
+impl ParamMapGet for GraphItem {
     ///Get a reference to the parameters for this item.
-    pub fn params(&self) -> &ParamHashMap {
+    fn params(&self) -> &ParamHashMap {
         match self {
             Self::Root { params, .. } => params,
             Self::Node { params, .. } => params,

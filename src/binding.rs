@@ -6,7 +6,7 @@ use sched::{
     Float,
 };
 
-use crate::param::ParamHashMap;
+use crate::param::{ParamHashMap, ParamMapGet};
 use std::sync::Arc;
 
 //pull in the codegen
@@ -52,9 +52,10 @@ impl Instance {
     pub fn access_name(&self) -> &'static str {
         self.binding.access_name()
     }
+}
 
-    /// Get a reference to the parameters for this binding.
-    pub fn params(&self) -> &ParamHashMap {
+impl ParamMapGet for Instance {
+    fn params(&self) -> &ParamHashMap {
         &self.params
     }
 }

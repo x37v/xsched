@@ -18,6 +18,12 @@ use std::{
 //pull in the codegen
 include!(concat!(env!("OUT_DIR"), "/param.rs"));
 
+/// A trait to access an items parameters.
+pub trait ParamMapGet {
+    /// Get a reference to the parameters for this object.
+    fn params(&self) -> &ParamHashMap;
+}
+
 /// Parameters with their access.
 pub enum ParamAccess {
     Get {
