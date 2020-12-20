@@ -47,12 +47,12 @@ pub struct OSCQueryHandler {
     bindings: std::sync::Mutex<HashMap<String, Arc<Instance>>>,
     graph: std::sync::Mutex<HashMap<String, Arc<GraphItem>>>,
     command_sender: SyncSender<Command>,
-    command_receiver: Receiver<Command>,
     server: OscQueryServer,
     xsched_handle: NodeHandle,
     bindings_handle: NodeHandle,
     graph_handle: NodeHandle,
     handles: Vec<NodeHandle>,
+    command_thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl ParamOSCQueryGetSet {
@@ -178,6 +178,12 @@ impl OSCQueryHandler {
             )
             .unwrap();
         let (command_sender, command_receiver) = std::sync::mpsc::sync_channel(256);
+        let command_thread = std::thread::spawn(move || {
+            for _cmd in command_receiver.iter() {
+                //XXX
+                println!("command_receiver got cmd");
+            }
+        });
         let s = Self {
             server,
             xsched_handle,
@@ -187,7 +193,7 @@ impl OSCQueryHandler {
             graph: Default::default(),
             handles,
             command_sender,
-            command_receiver,
+            command_thread: Some(command_thread),
         };
 
         //TODO add bindings and graph
@@ -207,6 +213,8 @@ impl OSCQueryHandler {
                     Some(self.bindings_handle),
                 )
                 .unwrap();
+            //value
+            self.add_binding_value(&binding, handle);
             //type nodes
             {
                 let weak = Arc::downgrade(&binding);
