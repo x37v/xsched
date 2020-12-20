@@ -1,5 +1,11 @@
 use crate::{binding::Instance, graph::GraphItem};
-use oscquery::{param::ParamGet, root::NodeHandle, value::ValueBuilder, OscQueryServer};
+use oscquery::{
+    func_wrap::GetFunc,
+    param::ParamGet,
+    root::NodeHandle,
+    value::{Get, ValueBuilder},
+    OscQueryServer,
+};
 use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
 
 pub struct OSCQueryHandler {
@@ -81,10 +87,9 @@ impl OSCQueryHandler {
         Ok(s)
     }
 
-    pub fn add_binding(&self, binding: Instance) {
+    pub fn add_binding(&self, binding: Arc<Instance>) {
         if let Ok(mut guard) = self.bindings.lock() {
             let uuids = binding.uuid().to_hyphenated().to_string();
-            let binding = Arc::new(binding);
             guard.insert(uuids.clone(), binding.clone());
 
             //XXX do we need to keep track of the handle?
@@ -97,25 +102,39 @@ impl OSCQueryHandler {
                     Some(self.bindings_handle),
                 )
                 .expect("to add node");
-            let _ = self
-                .server
-                .add_node(
-                    oscquery::node::Get::new(
-                        "type".to_string(),
-                        Some("type_name, access_name, data_type_name".into()),
-                        vec![
-                            binding.type_name(),
-                            binding.access_name(),
-                            binding.data_type_name(),
-                        ]
-                        .into_iter()
-                        .map(|v| ParamGet::String(ValueBuilder::new(Arc::new(v) as _).build())),
+            //type nodes
+            {
+                let weak = Arc::downgrade(&binding);
+                let type_name = Arc::new(GetFunc::new(move || {
+                    weak.upgrade().map_or("", |b| b.type_name()).to_string()
+                })) as Arc<dyn Get<String>>;
+                let weak = Arc::downgrade(&binding);
+                let access_name = Arc::new(GetFunc::new(move || {
+                    weak.upgrade().map_or("", |b| b.access_name()).to_string()
+                })) as Arc<dyn Get<String>>;
+                let weak = Arc::downgrade(&binding);
+                let data_type_name = Arc::new(GetFunc::new(move || {
+                    weak.upgrade()
+                        .map_or("", |b| b.data_type_name())
+                        .to_string()
+                })) as Arc<dyn Get<String>>;
+                let _ = self
+                    .server
+                    .add_node(
+                        oscquery::node::Get::new(
+                            "type".to_string(),
+                            Some("type_name, access_name, data_type_name".into()),
+                            vec![type_name, access_name, data_type_name]
+                                .into_iter()
+                                .map(|v| ParamGet::String(ValueBuilder::new(v as _).build())),
+                        )
+                        .expect("to construct binding")
+                        .into(),
+                        Some(handle),
                     )
-                    .expect("to construct binding")
-                    .into(),
-                    Some(handle),
-                )
-                .expect("to add node");
+                    .expect("to add node");
+            };
+
             //XXX codegen Get/Set from Binding
             //XXX do params
         }

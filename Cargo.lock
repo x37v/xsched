@@ -734,7 +734,6 @@ dependencies = [
 [[package]]
 name = "oscquery"
 version = "0.1.0"
-source = "git+https://github.com/x37v/oscquery-rs.git#2bd471cfec227acf455d2a401190a5eb3d549a5a"
 dependencies = [
  "atomic",
  "futures",

@@ -15,7 +15,7 @@ path = "src/main.rs"
 [dependencies]
 sched = { path = "../sched" }
 jack = "0.6.5"
-oscquery = { git = "https://github.com/x37v/oscquery-rs.git" }
+oscquery = { path = "../../oscquery-rs" }
 uuid = { version = "0.8.1", features = ["serde", "v4"] }
 ctrlc = "3.1.7"
 

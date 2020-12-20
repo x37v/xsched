@@ -28,21 +28,21 @@ fn main() -> Result<(), std::io::Error> {
     let sched = Sched::new();
     let _jack = Jack::new(sched);
     let server = OSCQueryHandler::new(bindings, graph)?;
-    server.add_binding(Instance::new(
+    server.add_binding(Arc::new(Instance::new(
         &"value",
         xsched::binding::Access::USizeGet(
             Arc::new(std::sync::atomic::AtomicUsize::new(0)) as Arc<dyn ParamBindingGet<usize>>
         ),
         HashMap::new(),
-    ));
+    )));
 
-    server.add_binding(Instance::new(
+    server.add_binding(Arc::new(Instance::new(
         &"value",
         xsched::binding::Access::ISizeGet(
             Arc::new(std::sync::atomic::AtomicIsize::new(-2)) as Arc<dyn ParamBindingGet<isize>>
         ),
         HashMap::new(),
-    ));
+    )));
 
     while run.load(Ordering::Acquire) {
         std::thread::sleep(std::time::Duration::from_millis(10));
