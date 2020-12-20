@@ -94,7 +94,9 @@ impl ::oscquery::node::OscUpdate for ParamOSCQueryOscUpdate {
     ) -> Option<oscquery::root::OscWriteCallback> {
         match args.first() {
             Some(::oscquery::osc::OscType::String(v)) => {
-                println!("to bind {:?}, {} {}", self.owner, self.key, v);
+                //println!("to bind {:?}, {} {}", self.owner, self.key, v);
+                //TODO use 2nd arg as uuid for command response?
+                //use time?
                 self.command_sender
                     .send(Command::BindParam {
                         owner: self.owner.clone(),
