@@ -16,16 +16,21 @@ use std::{
     },
 };
 
+#[derive(Clone, Debug)]
+enum ParamOwner {
+    Binding(uuid::Uuid),
+}
+
 enum Command {
     BindParam {
-        binding_id: uuid::Uuid,
+        owner: ParamOwner,
         param_name: &'static str,
-        param_id: uuid::Uuid,
+        param_id: String,
     },
 }
 
-//
 struct ParamOSCQueryGetSet {
+    owner: ParamOwner,
     command_sender: SyncSender<Command>,
     key: &'static str,
     map: Weak<dyn ParamMapGet + Send + Sync>,
@@ -45,14 +50,16 @@ pub struct OSCQueryHandler {
 
 impl ParamOSCQueryGetSet {
     fn new(
-        command_sender: SyncSender<Command>,
+        owner: ParamOwner,
         key: &'static str,
         map: &Arc<dyn ParamMapGet + Send + Sync>,
+        command_sender: SyncSender<Command>,
     ) -> Self {
         Self {
-            command_sender,
+            owner,
             key,
             map: Arc::downgrade(map),
+            command_sender,
         }
     }
 }
@@ -73,7 +80,14 @@ impl ::oscquery::value::Get<String> for ParamOSCQueryGetSet {
 
 impl ::oscquery::value::Set<String> for ParamOSCQueryGetSet {
     fn set(&self, value: String) {
-        //XXX
+        //println!("to bind {:?}, {} {}", self.owner, self.key, value);
+        self.command_sender
+            .send(Command::BindParam {
+                owner: self.owner.clone(),
+                param_name: self.key,
+                param_id: value,
+            })
+            .expect("to send command");
     }
 }
 
@@ -194,12 +208,18 @@ impl OSCQueryHandler {
                     )
                     .unwrap();
             }
-            self.add_params(binding.clone() as _, handle.clone());
+            //parameters
+            self.add_params(
+                ParamOwner::Binding(binding.uuid().clone()),
+                binding.clone() as _,
+                handle.clone(),
+            );
         }
     }
 
     fn add_params(
         &self,
+        owner: ParamOwner,
         item: ::std::sync::Arc<dyn ParamMapGet + Send + Sync>,
         handle: ::oscquery::root::NodeHandle,
     ) {
@@ -215,9 +235,10 @@ impl OSCQueryHandler {
         let keys: Vec<_> = item.params().keys().into_iter().cloned().collect();
         for key in keys {
             let wrapper = Arc::new(ParamOSCQueryGetSet::new(
-                self.command_sender.clone(),
+                owner.clone(),
                 key,
                 &item,
+                self.command_sender.clone(),
             ));
             let _ = self
                 .server
