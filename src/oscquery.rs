@@ -24,16 +24,23 @@ enum ParamOwner {
 enum Command {
     BindParam {
         owner: ParamOwner,
+        handle: NodeHandle,
         param_name: &'static str,
         param_id: String,
     },
 }
 
+//wrapper to impl get
 struct ParamOSCQueryGetSet {
+    key: &'static str,
+    map: Weak<dyn ParamMapGet + Send + Sync>,
+}
+
+//wrapper to impl OscUpdate
+struct ParamOSCQueryOscUpdate {
     owner: ParamOwner,
     command_sender: SyncSender<Command>,
     key: &'static str,
-    map: Weak<dyn ParamMapGet + Send + Sync>,
 }
 
 pub struct OSCQueryHandler {
@@ -49,17 +56,10 @@ pub struct OSCQueryHandler {
 }
 
 impl ParamOSCQueryGetSet {
-    fn new(
-        owner: ParamOwner,
-        key: &'static str,
-        map: &Arc<dyn ParamMapGet + Send + Sync>,
-        command_sender: SyncSender<Command>,
-    ) -> Self {
+    fn new(key: &'static str, map: &Arc<dyn ParamMapGet + Send + Sync>) -> Self {
         Self {
-            owner,
             key,
             map: Arc::downgrade(map),
-            command_sender,
         }
     }
 }
@@ -79,15 +79,44 @@ impl ::oscquery::value::Get<String> for ParamOSCQueryGetSet {
 }
 
 impl ::oscquery::value::Set<String> for ParamOSCQueryGetSet {
-    fn set(&self, value: String) {
-        //println!("to bind {:?}, {} {}", self.owner, self.key, value);
-        self.command_sender
-            .send(Command::BindParam {
-                owner: self.owner.clone(),
-                param_name: self.key,
-                param_id: value,
-            })
-            .expect("to send command");
+    fn set(&self, _value: String) {
+        //use the oscquery handler
+    }
+}
+
+impl ::oscquery::node::OscUpdate for ParamOSCQueryOscUpdate {
+    fn osc_update(
+        &self,
+        args: &Vec<oscquery::osc::OscType>,
+        _addr: Option<SocketAddr>,
+        _time: Option<(u32, u32)>,
+        handle: &NodeHandle,
+    ) -> Option<oscquery::root::OscWriteCallback> {
+        match args.first() {
+            Some(::oscquery::osc::OscType::String(v)) => {
+                println!("to bind {:?}, {} {}", self.owner, self.key, v);
+                self.command_sender
+                    .send(Command::BindParam {
+                        owner: self.owner.clone(),
+                        handle: handle.clone(),
+                        param_name: self.key,
+                        param_id: v.clone(),
+                    })
+                    .expect("to send command");
+            }
+            _ => (),
+        }
+        None
+    }
+}
+
+impl ParamOSCQueryOscUpdate {
+    pub fn new(owner: ParamOwner, command_sender: SyncSender<Command>, key: &'static str) -> Self {
+        Self {
+            owner,
+            command_sender,
+            key,
+        }
     }
 }
 
@@ -234,11 +263,11 @@ impl OSCQueryHandler {
             .unwrap();
         let keys: Vec<_> = item.params().keys().into_iter().cloned().collect();
         for key in keys {
-            let wrapper = Arc::new(ParamOSCQueryGetSet::new(
+            let wrapper = Arc::new(ParamOSCQueryGetSet::new(key, &item));
+            let handler = Box::new(ParamOSCQueryOscUpdate::new(
                 owner.clone(),
-                key,
-                &item,
                 self.command_sender.clone(),
+                key,
             ));
             let _ = self
                 .server
@@ -249,7 +278,7 @@ impl OSCQueryHandler {
                         vec![::oscquery::param::ParamGetSet::String(
                             ValueBuilder::new(wrapper as _).build(),
                         )],
-                        None,
+                        Some(handler),
                     )
                     .unwrap()
                     .into(),
