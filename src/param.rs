@@ -15,9 +15,6 @@ use std::{
     sync::Arc,
 };
 
-//pull in the codegen
-include!(concat!(env!("OUT_DIR"), "/param.rs"));
-
 /// A trait to access an items parameters.
 pub trait ParamMapGet {
     /// Get a reference to the parameters for this object.
@@ -143,3 +140,6 @@ impl ParamAccess {
         }
     }
 }
+
+//pull in the codegen
+include!(concat!(env!("OUT_DIR"), "/param.rs"));

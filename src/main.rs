@@ -1,6 +1,11 @@
 use sched::binding::ParamBindingGet;
 use xsched::{
-    binding::Instance, graph::GraphItem, jack::Jack, oscquery::OSCQueryHandler, sched::Sched,
+    binding::{Access, Instance},
+    graph::GraphItem,
+    jack::Jack,
+    oscquery::OSCQueryHandler,
+    param::{ParamAccess, ParamGet},
+    sched::Sched,
 };
 
 use std::{
@@ -36,12 +41,22 @@ fn main() -> Result<(), std::io::Error> {
         HashMap::new(),
     )));
 
+    let lswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
+    let rswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
+    let max = Arc::new(sched::binding::ops::GetBinaryOp::new(
+        core::cmp::max,
+        lswap.clone() as Arc<dyn ParamBindingGet<usize>>,
+        rswap.clone() as Arc<dyn ParamBindingGet<usize>>,
+    ));
+
+    let mut map = HashMap::new();
+    map.insert("left", ParamAccess::new_get(ParamGet::USize(lswap)));
+    map.insert("right", ParamAccess::new_get(ParamGet::USize(rswap)));
+
     server.add_binding(Arc::new(Instance::new(
-        &"value",
-        xsched::binding::Access::ISizeGet(
-            Arc::new(std::sync::atomic::AtomicIsize::new(-2)) as Arc<dyn ParamBindingGet<isize>>
-        ),
-        HashMap::new(),
+        &"max",
+        Access::USizeGet(Arc::new(max as Arc<dyn ParamBindingGet<usize>>)),
+        map,
     )));
 
     while run.load(Ordering::Acquire) {

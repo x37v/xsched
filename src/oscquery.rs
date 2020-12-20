@@ -1,4 +1,4 @@
-use crate::{binding::Instance, graph::GraphItem};
+use crate::{binding::Instance, graph::GraphItem, param::ParamMapGet};
 use oscquery::{
     func_wrap::GetFunc,
     param::ParamGet,
@@ -6,16 +6,75 @@ use oscquery::{
     value::{Get, ValueBuilder},
     OscQueryServer,
 };
-use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    str::FromStr,
+    sync::{
+        mpsc::{Receiver, SyncSender},
+        Arc, Weak,
+    },
+};
+
+enum Command {
+    BindParam {
+        binding_id: uuid::Uuid,
+        param_name: &'static str,
+        param_id: uuid::Uuid,
+    },
+}
+
+//
+struct ParamOSCQueryGetSet {
+    command_sender: SyncSender<Command>,
+    key: &'static str,
+    map: Weak<dyn ParamMapGet + Send + Sync>,
+}
 
 pub struct OSCQueryHandler {
     bindings: std::sync::Mutex<HashMap<String, Arc<Instance>>>,
     graph: std::sync::Mutex<HashMap<String, Arc<GraphItem>>>,
+    command_sender: SyncSender<Command>,
+    command_receiver: Receiver<Command>,
     server: OscQueryServer,
     xsched_handle: NodeHandle,
     bindings_handle: NodeHandle,
     graph_handle: NodeHandle,
     handles: Vec<NodeHandle>,
+}
+
+impl ParamOSCQueryGetSet {
+    fn new(
+        command_sender: SyncSender<Command>,
+        key: &'static str,
+        map: &Arc<dyn ParamMapGet + Send + Sync>,
+    ) -> Self {
+        Self {
+            command_sender,
+            key,
+            map: Arc::downgrade(map),
+        }
+    }
+}
+
+fn map_uuid(uuid: &uuid::Uuid) -> String {
+    uuid.to_hyphenated().to_string()
+}
+
+impl ::oscquery::value::Get<String> for ParamOSCQueryGetSet {
+    fn get(&self) -> String {
+        self.map.upgrade().map_or("".into(), |m| {
+            m.params()
+                .uuid(self.key)
+                .map_or("".into(), |u| map_uuid(&u))
+        })
+    }
+}
+
+impl ::oscquery::value::Set<String> for ParamOSCQueryGetSet {
+    fn set(&self, value: String) {
+        //XXX
+    }
 }
 
 impl OSCQueryHandler {
@@ -36,31 +95,31 @@ impl OSCQueryHandler {
                     "xsched".into(),
                     Some("xsched scheduler root".into()),
                 )
-                .expect("to construct xsched")
+                .unwrap()
                 .into(),
                 None,
             )
-            .expect("to add handle");
+            .unwrap();
         let bindings_base = server
             .add_node(
                 oscquery::node::Container::new(
                     "bindings".into(),
                     Some("xsched scheduler bindings".into()),
                 )
-                .expect("to construct bindings")
+                .unwrap()
                 .into(),
                 Some(xsched_handle),
             )
-            .expect("to add handle");
+            .unwrap();
         handles.push(bindings_base.clone());
         let bindings_handle = server
             .add_node(
                 oscquery::node::Container::new("uuids".into(), Some("bindings by uuid".into()))
-                    .expect("to construct bindings")
+                    .unwrap()
                     .into(),
                 Some(bindings_base),
             )
-            .expect("to add handle");
+            .unwrap();
         //TODO aliases
         let graph_handle = server
             .add_node(
@@ -68,11 +127,12 @@ impl OSCQueryHandler {
                     "graph".into(),
                     Some("xsched scheduler graph".into()),
                 )
-                .expect("to construct graph")
+                .unwrap()
                 .into(),
                 Some(xsched_handle),
             )
-            .expect("to add handle");
+            .unwrap();
+        let (command_sender, command_receiver) = std::sync::mpsc::sync_channel(256);
         let s = Self {
             server,
             xsched_handle,
@@ -81,6 +141,8 @@ impl OSCQueryHandler {
             bindings: Default::default(),
             graph: Default::default(),
             handles,
+            command_sender,
+            command_receiver,
         };
 
         //TODO add bindings and graph
@@ -89,19 +151,17 @@ impl OSCQueryHandler {
 
     pub fn add_binding(&self, binding: Arc<Instance>) {
         if let Ok(mut guard) = self.bindings.lock() {
-            let uuids = binding.uuid().to_hyphenated().to_string();
+            let uuids = map_uuid(&binding.uuid());
             guard.insert(uuids.clone(), binding.clone());
 
             //XXX do we need to keep track of the handle?
             let handle = self
                 .server
                 .add_node(
-                    oscquery::node::Container::new(uuids, None)
-                        .expect("to construct binding")
-                        .into(),
+                    oscquery::node::Container::new(uuids, None).unwrap().into(),
                     Some(self.bindings_handle),
                 )
-                .expect("to add node");
+                .unwrap();
             //type nodes
             {
                 let weak = Arc::downgrade(&binding);
@@ -128,15 +188,56 @@ impl OSCQueryHandler {
                                 .into_iter()
                                 .map(|v| ParamGet::String(ValueBuilder::new(v as _).build())),
                         )
-                        .expect("to construct binding")
+                        .unwrap()
                         .into(),
                         Some(handle),
                     )
-                    .expect("to add node");
-            };
+                    .unwrap();
+            }
+            self.add_params(binding.clone() as _, handle.clone());
+        }
+    }
 
-            //XXX codegen Get/Set from Binding
-            //XXX do params
+    fn add_params(
+        &self,
+        item: ::std::sync::Arc<dyn ParamMapGet + Send + Sync>,
+        handle: ::oscquery::root::NodeHandle,
+    ) {
+        let phandle = self
+            .server
+            .add_node(
+                ::oscquery::node::Container::new("params".to_string(), None)
+                    .unwrap()
+                    .into(),
+                Some(handle.clone()),
+            )
+            .unwrap();
+        let keys: Vec<_> = item.params().keys().into_iter().cloned().collect();
+        for key in keys {
+            let wrapper = Arc::new(ParamOSCQueryGetSet::new(
+                self.command_sender.clone(),
+                key,
+                &item,
+            ));
+            let _ = self
+                .server
+                .add_node(
+                    ::oscquery::node::GetSet::new(
+                        key.to_string(),
+                        Some("binding_id".into()),
+                        vec![::oscquery::param::ParamGetSet::String(
+                            ValueBuilder::new(wrapper as _).build(),
+                        )],
+                        None,
+                    )
+                    .unwrap()
+                    .into(),
+                    Some(phandle),
+                )
+                .unwrap();
         }
     }
 }
+
+//pull in the codegen
+include!(concat!(env!("OUT_DIR"), "/oscquery.rs"));

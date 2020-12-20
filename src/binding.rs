@@ -9,9 +9,6 @@ use sched::{
 use crate::param::{ParamHashMap, ParamMapGet};
 use std::sync::Arc;
 
-//pull in the codegen
-include!(concat!(env!("OUT_DIR"), "/binding.rs"));
-
 /// Bindings with their access.
 
 /// An instance of a typed datum or operation.
@@ -59,6 +56,9 @@ impl ParamMapGet for Instance {
         &self.params
     }
 }
+
+//pull in the codegen
+include!(concat!(env!("OUT_DIR"), "/binding.rs"));
 
 #[cfg(test)]
 mod tests {
