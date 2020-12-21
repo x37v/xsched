@@ -51,7 +51,6 @@ pub struct OSCQueryHandler {
     xsched_handle: NodeHandle,
     bindings_handle: NodeHandle,
     graph_handle: NodeHandle,
-    handles: Vec<NodeHandle>,
     command_thread: Option<std::thread::JoinHandle<()>>,
 }
 
@@ -133,7 +132,6 @@ impl OSCQueryHandler {
             "0.0.0.0:3010",
             "0.0.0.0:3001",
         )?;
-        let mut handles = Vec::new();
         let xsched_handle = server
             .add_node(
                 oscquery::node::Container::new(
@@ -156,7 +154,6 @@ impl OSCQueryHandler {
                 Some(xsched_handle),
             )
             .unwrap();
-        handles.push(bindings_base.clone());
         let bindings_handle = server
             .add_node(
                 oscquery::node::Container::new("uuids".into(), Some("bindings by uuid".into()))
@@ -191,7 +188,6 @@ impl OSCQueryHandler {
             graph_handle,
             bindings: Default::default(),
             graph: Default::default(),
-            handles,
             command_sender,
             command_thread: Some(command_thread),
         };

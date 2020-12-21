@@ -8,6 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut bindings_file = std::fs::File::create(&Path::new(&out_dir).join("binding.rs"))?;
     let mut params_file = std::fs::File::create(&Path::new(&out_dir).join("param.rs"))?;
+    let mut oscquery_file = std::fs::File::create(&Path::new(&out_dir).join("oscquery.rs"))?;
 
     //(enum Varaiant Name, str for function naming, actual type name)
     let variants = [
@@ -234,6 +235,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             ParamAccess::Get{ .. } => "get",
                             ParamAccess::Set{ .. } => "set",
                         }
+                    }
+                }
+            }
+            .to_string()
+            .as_bytes(),
+        )?;
+    }
+
+    {
+        oscquery_file.write_all(
+            quote! {
+                impl OSCQueryHandler {
+                    pub fn add_binding_value(&self, binding: &Arc<Instance>, handle: ::oscquery::root::NodeHandle) {
+                        //TODO
                     }
                 }
             }
