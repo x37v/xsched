@@ -36,7 +36,7 @@ fn main() -> Result<(), std::io::Error> {
     server.add_binding(Arc::new(Instance::new(
         &"value",
         xsched::binding::Access::USizeGet(
-            Arc::new(std::sync::atomic::AtomicUsize::new(0)) as Arc<dyn ParamBindingGet<usize>>
+            Arc::new(std::sync::atomic::AtomicUsize::new(2084)) as Arc<dyn ParamBindingGet<usize>>
         ),
         HashMap::new(),
     )));
