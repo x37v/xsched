@@ -30,6 +30,11 @@ impl Instance {
         }
     }
 
+    /// Get the binding for this instance.
+    pub fn binding(&self) -> &Access {
+        &self.binding
+    }
+
     /// Get the unique identifier for this binding instance.
     pub fn uuid(&self) -> uuid::Uuid {
         self.uuid
