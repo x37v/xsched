@@ -18,6 +18,8 @@ jack = "0.6.5"
 oscquery = { path = "../../oscquery-rs" }
 uuid = { version = "0.8.1", features = ["serde", "v4"] }
 ctrlc = "3.1.7"
+num = "0.3.1"
 
 [build-dependencies]
 quote = "1.0.7"
+proc-macro2 = "1.0.24"
