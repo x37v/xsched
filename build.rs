@@ -1,3 +1,4 @@
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::env;
 use std::io::Write;
@@ -243,12 +244,171 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?;
     }
 
+    struct SimpBindingValue {
+        pub bind_prefix: &'static str,
+        pub osc_enum: &'static str,
+        pub get_func: TokenStream,
+        pub set_func: TokenStream,
+        pub clip: Option<TokenStream>,
+        pub range: Option<TokenStream>,
+    }
+
     {
+        let simp = [
+            SimpBindingValue {
+                bind_prefix: &"Bool",
+                osc_enum: &"Bool",
+                get_func: quote! {
+                    g.upgrade().map_or(false, |g| g.get())
+                },
+                set_func: quote! {
+                    s.upgrade().map(|s| s.set(v));
+                },
+                clip: None,
+                range: None,
+            },
+            SimpBindingValue {
+                bind_prefix: &"U8",
+                osc_enum: &"Int",
+                get_func: quote! {
+                    g.upgrade().map_or(0, |g| g.get() as i32)
+                },
+                set_func: quote! {
+                    s.upgrade().map(|s| s.set(num::clamp(v, 0, 255) as u8));
+                },
+                clip: Some(quote! {
+                    ClipMode::Both
+                }),
+                range: Some(quote! {
+                    Range::MinMax(0, 255)
+                }),
+            },
+            SimpBindingValue {
+                bind_prefix: &"USize",
+                osc_enum: &"Long",
+                get_func: quote! {
+                    g.upgrade().map_or(0i64, |g| g.get() as i64)
+                },
+                set_func: quote! {
+                    s.upgrade().map(|s| s.set(std::cmp::max(v, 0i64) as usize));
+                },
+                clip: Some(quote! {
+                    ClipMode::Low
+                }),
+                range: Some(quote! {
+                    Range::Min(0)
+                }),
+            },
+            SimpBindingValue {
+                bind_prefix: &"ISize",
+                osc_enum: &"Long",
+                get_func: quote! {
+                    g.upgrade().map_or(0i64, |g| g.get() as i64)
+                },
+                set_func: quote! {
+                    s.upgrade().map(|s| s.set(std::cmp::max(v, 0i64) as isize));
+                },
+                clip: None,
+                range: None,
+            },
+        ];
+
+        let mut access_values = Vec::new();
+        for v in simp.iter() {
+            let osctype = format_ident!("{}", v.osc_enum);
+            let g = format_ident!("{}Get", v.bind_prefix);
+            let s = format_ident!("{}Set", v.bind_prefix);
+            let gs = format_ident!("{}GetSet", v.bind_prefix);
+            let gf = v.get_func.clone();
+            let sf = v.set_func.clone();
+            let clip = v.clip.clone().unwrap_or(quote! { Default::default() });
+            let range = v.range.clone().unwrap_or(quote! { Default::default() });
+            access_values.push(quote! {
+                Access::#g(g) => {
+                    let g = Arc::downgrade(&g);
+                    let _ = self.server.add_node(
+                        oscquery::node::Get::new(
+                            name,
+                            description,
+                            vec![ParamGet::#osctype(
+                                ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                    #gf
+                                })) as _)
+                                .with_clip_mode(#clip)
+                                .with_range(#range)
+                                .build(),
+                            )],
+                        )
+                        .unwrap()
+                        .into(),
+                        Some(handle),
+                    );
+                    }
+            });
+            access_values.push(quote! {
+                Access::#s(s) => {
+                    let s = Arc::downgrade(&s);
+                    let _ = self.server.add_node(
+                        oscquery::node::Set::new(
+                            name,
+                            description,
+                            vec![ParamSet::#osctype(
+                                ValueBuilder::new(Arc::new(SetFunc::new(move |v| {
+                                    #sf
+                                })) as _)
+                                .with_clip_mode(#clip)
+                                .with_range(#range)
+                                .build(),
+                            )],
+                            None
+                        )
+                        .unwrap()
+                        .into(),
+                        Some(handle),
+                    );
+                    }
+            });
+            access_values.push(quote! {
+                Access::#gs { get: g, set: s } => {
+                    let g = Arc::downgrade(&g);
+                    let s = Arc::downgrade(&s);
+                    let _ = self.server.add_node(
+                        oscquery::node::Set::new(
+                            name,
+                            description,
+                            vec![ParamSet::#osctype(
+                                ValueBuilder::new(Arc::new(GetSetFuncs::new(
+                                    move || {
+                                        #gf
+                                    },
+                                    move |v| {
+                                        #sf
+                                    },
+                                )) as _)
+                                .with_clip_mode(#clip)
+                                .with_range(#range)
+                                .build(),
+                            )],
+                            None,
+                        )
+                        .unwrap()
+                        .into(),
+                        Some(handle),
+                    );
+                }
+            });
+        }
+
         oscquery_file.write_all(
             quote! {
                 impl OSCQueryHandler {
-                    pub fn add_binding_value(&self, binding: &Arc<Instance>, handle: ::oscquery::root::NodeHandle) {
-                        //TODO
+                    fn add_binding_value(&self, instance: &Arc<Instance>, handle: ::oscquery::root::NodeHandle) {
+                        let name = "value".to_string();
+                        let description: Option<String> = Some("binding value".into());
+                        match instance.binding() {
+                            #(#access_values),*
+                            _ => ()
+                        }
                     }
                 }
             }

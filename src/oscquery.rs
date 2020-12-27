@@ -1,9 +1,13 @@
-use crate::{binding::Instance, graph::GraphItem, param::ParamMapGet};
+use crate::{
+    binding::{Access, Instance},
+    graph::GraphItem,
+    param::ParamMapGet,
+};
 use oscquery::{
-    func_wrap::GetFunc,
-    param::ParamGet,
+    func_wrap::{GetFunc, GetSetFuncs, SetFunc},
+    param::{ParamGet, ParamSet},
     root::NodeHandle,
-    value::{Get, ValueBuilder},
+    value::{ClipMode, Get, Range, ValueBuilder},
     OscQueryServer,
 };
 use std::{
