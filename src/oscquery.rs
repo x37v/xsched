@@ -5,12 +5,16 @@ use crate::{
 };
 use oscquery::{
     func_wrap::{GetFunc, GetSetFuncs, SetFunc},
-    param::{ParamGet, ParamSet},
+    param::{ParamGet, ParamGetSet, ParamSet},
     root::NodeHandle,
-    value::{ClipMode, Get, Range, ValueBuilder},
+    value::{ClipMode, Get, Range, Value, ValueBuilder},
     OscQueryServer,
 };
-use sched::binding::{last::BindingLast, ParamBindingSet};
+use sched::binding::{
+    bpm::{Clock, ClockData},
+    last::BindingLast,
+    ParamBindingSet,
+};
 use std::{
     collections::HashMap,
     net::SocketAddr,

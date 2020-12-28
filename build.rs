@@ -252,6 +252,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         pub set_func: TokenStream,
         pub clip: Option<TokenStream>,
         pub range: Option<TokenStream>,
+        pub name: &'static str,
+        pub description: Option<String>,
+    }
+
+    impl Default for SimpBindingValue {
+        fn default() -> Self {
+            Self {
+                bind_prefix: &"",
+                osc_variant: &"",
+                osc_type: &"",
+                get_func: quote! { unimplemented!(); },
+                set_func: quote! { unimplemented!(); },
+                clip: None,
+                range: None,
+                name: &"",
+                description: None,
+            }
+        }
     }
 
     {
@@ -266,8 +284,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(v));
                 },
-                clip: None,
-                range: None,
+                ..Default::default()
             },
             SimpBindingValue {
                 bind_prefix: &"U8",
@@ -285,6 +302,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 range: Some(quote! {
                     Range::MinMax(0, 255)
                 }),
+                ..Default::default()
             },
             SimpBindingValue {
                 bind_prefix: &"USize",
@@ -302,6 +320,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 range: Some(quote! {
                     Range::Min(0)
                 }),
+                ..Default::default()
             },
             SimpBindingValue {
                 bind_prefix: &"ISize",
@@ -313,8 +332,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(v as isize));
                 },
-                clip: None,
-                range: None,
+                ..Default::default()
             },
             SimpBindingValue {
                 bind_prefix: &"Float",
@@ -326,8 +344,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(v));
                 },
-                clip: None,
-                range: None,
+                ..Default::default()
             },
         ];
 
@@ -424,8 +441,130 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     fn add_binding_value(&self, instance: &Arc<Instance>, handle: ::oscquery::root::NodeHandle) {
                         let name = "value".to_string();
                         let description: Option<String> = Some("binding value".into());
+                        let to_clock_get = |weak: &Weak<dyn ::sched::binding::last::BindingLast<ClockData>>| {
+                            weak.upgrade().map_or(ClockData::default(), |g| g.last_get().unwrap_or(ClockData::default()))
+                        };
                         match instance.binding() {
                             #(#access_values),*
+                            Access::ClockDataGet(g) => {
+                                let g = Arc::downgrade(&g) as Weak<dyn ::sched::binding::last::BindingLast<ClockData>>;
+                                let bpmg = g.clone();
+                                let ppqg = g.clone();
+                                let microg = g.clone();
+                                let _ = self.server.add_node(
+                                    oscquery::node::Get::new(
+                                        "value".into(),
+                                        Some("beats per minute, period micros, ppq".into()),
+                                        vec![
+                                        ParamGet::Double(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                to_clock_get(&bpmg).bpm()
+                                            })) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0.0))
+                                            .build(),
+                                        ),
+                                        ParamGet::Double(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                to_clock_get(&microg).period_micros()
+                                            })) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0.0))
+                                            .build(),
+                                        ),
+                                        ParamGet::Long(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                to_clock_get(& ppqg).ppq() as i64
+                                            })) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0))
+                                            .build(),
+                                        ),
+                                        ],
+                                        )
+                                            .unwrap()
+                                            .into(),
+                                            Some(handle),
+                                            ).unwrap();
+                            },
+                            Access::ClockDataGetSet(gs) => {
+                                let g = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::last::BindingLast<ClockData>>;
+                                let bpmg = g.clone();
+                                let ppqg = g.clone();
+                                let microg = g.clone();
+                                let _ = self.server.add_node(
+                                    oscquery::node::GetSet::new(
+                                        "value".into(),
+                                        Some("beats per minute, period micros, ppq".into()),
+                                        vec![
+                                        ParamGetSet::Double(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                to_clock_get(&bpmg).bpm()
+                                            })) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0.0))
+                                            .build(),
+                                        ),
+                                        ParamGetSet::Double(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                to_clock_get(&microg).period_micros()
+                                            })) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0.0))
+                                            .build(),
+                                        ),
+                                        ParamGetSet::Long(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                to_clock_get(& ppqg).ppq() as i64
+                                            })) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0))
+                                            .build(),
+                                        ),
+                                        ],
+                                        None,
+                                        )
+                                            .unwrap()
+                                            .into(),
+                                            Some(handle),
+                                            ).unwrap();
+                            },
+                            Access::ClockDataSet(gs) => {
+                                let g = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::last::BindingLast<ClockData>>;
+                                let bpmg = g.clone();
+                                let ppqg = g.clone();
+                                let microg = g.clone();
+                                let _ = self.server.add_node(
+                                    oscquery::node::Set::new(
+                                        "value".into(),
+                                        Some("beats per minute, period micros, ppq".into()),
+                                        vec![
+                                        ParamSet::Double(
+                                            ValueBuilder::new(Arc::new(()) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0.0))
+                                            .build(),
+                                        ),
+                                        ParamSet::Double(
+                                            ValueBuilder::new(Arc::new(()) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0.0))
+                                            .build(),
+                                        ),
+                                        ParamSet::Long(
+                                            ValueBuilder::new(Arc::new(()) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0))
+                                            .build(),
+                                        ),
+                                        ],
+                                        None,
+                                        )
+                                            .unwrap()
+                                            .into(),
+                                            Some(handle),
+                                            ).unwrap();
+                            },
                             _ => ()
                         }
                     }
