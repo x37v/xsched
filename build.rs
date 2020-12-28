@@ -246,7 +246,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     struct SimpBindingValue {
         pub bind_prefix: &'static str,
-        pub osc_enum: &'static str,
+        pub osc_variant: &'static str,
+        pub osc_type: &'static str,
         pub get_func: TokenStream,
         pub set_func: TokenStream,
         pub clip: Option<TokenStream>,
@@ -257,7 +258,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let simp = [
             SimpBindingValue {
                 bind_prefix: &"Bool",
-                osc_enum: &"Bool",
+                osc_variant: &"Bool",
+                osc_type: &"bool",
                 get_func: quote! {
                     g.upgrade().map_or(false, |g| g.last_get().unwrap_or(false))
                 },
@@ -269,7 +271,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             SimpBindingValue {
                 bind_prefix: &"U8",
-                osc_enum: &"Int",
+                osc_variant: &"Int",
+                osc_type: &"i32",
                 get_func: quote! {
                     g.upgrade().map_or(0, |g| g.last_get().unwrap_or(0) as i32)
                 },
@@ -285,7 +288,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             SimpBindingValue {
                 bind_prefix: &"USize",
-                osc_enum: &"Long",
+                osc_variant: &"Long",
+                osc_type: &"i64",
                 get_func: quote! {
                     g.upgrade().map_or(0i64, |g| g.last_get().unwrap_or(0usize) as i64)
                 },
@@ -301,12 +305,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             SimpBindingValue {
                 bind_prefix: &"ISize",
-                osc_enum: &"Long",
+                osc_variant: &"Long",
+                osc_type: &"i64",
                 get_func: quote! {
                     g.upgrade().map_or(0i64, |g| g.last_get().unwrap_or(0) as i64)
                 },
                 set_func: quote! {
-                    s.upgrade().map(|s| s.set(std::cmp::max(v, 0i64) as isize));
+                    s.upgrade().map(|s| s.set(v as isize));
+                },
+                clip: None,
+                range: None,
+            },
+            SimpBindingValue {
+                bind_prefix: &"Float",
+                osc_variant: &"Double",
+                osc_type: &"f64",
+                get_func: quote! {
+                    g.upgrade().map_or(0.0, |g| g.last_get().unwrap_or(0.0))
+                },
+                set_func: quote! {
+                    s.upgrade().map(|s| s.set(v));
                 },
                 clip: None,
                 range: None,
@@ -315,7 +333,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut access_values = Vec::new();
         for v in simp.iter() {
-            let osctype = format_ident!("{}", v.osc_enum);
+            let osc_variant = format_ident!("{}", v.osc_variant);
+            let osc_type = format_ident!("{}", v.osc_type);
             let g = format_ident!("{}Get", v.bind_prefix);
             let s = format_ident!("{}Set", v.bind_prefix);
             let gs = format_ident!("{}GetSet", v.bind_prefix);
@@ -330,7 +349,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         oscquery::node::Get::new(
                             name,
                             description,
-                            vec![ParamGet::#osctype(
+                            vec![ParamGet::#osc_variant(
                                 ValueBuilder::new(Arc::new(GetFunc::new(move || {
                                     #gf
                                 })) as _)
@@ -352,8 +371,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         oscquery::node::Set::new(
                             name,
                             description,
-                            vec![ParamSet::#osctype(
-                                ValueBuilder::new(Arc::new(SetFunc::new(move |v| {
+                            vec![ParamSet::#osc_variant(
+                                ValueBuilder::new(Arc::new(SetFunc::new(move |v: #osc_type| {
                                     #sf
                                 })) as _)
                                 .with_clip_mode(#clip)
@@ -376,12 +395,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         oscquery::node::Set::new(
                             name,
                             description,
-                            vec![ParamSet::#osctype(
+                            vec![ParamSet::#osc_variant(
                                 ValueBuilder::new(Arc::new(GetSetFuncs::new(
                                     move || {
                                         #gf
                                     },
-                                    move |v| {
+                                    move |v: #osc_type| {
                                         #sf
                                     },
                                 )) as _)
