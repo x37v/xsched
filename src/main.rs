@@ -1,4 +1,7 @@
-use sched::binding::ParamBindingGet;
+use sched::binding::{
+    last::{BindingLastGet, BindingLastGetSet},
+    ParamBindingGet,
+};
 use xsched::{
     binding::{Access, Instance},
     graph::GraphItem,
@@ -35,19 +38,19 @@ fn main() -> Result<(), std::io::Error> {
     let server = OSCQueryHandler::new(bindings, graph)?;
     server.add_binding(Arc::new(Instance::new(
         &"value",
-        xsched::binding::Access::USizeGet(
-            Arc::new(std::sync::atomic::AtomicUsize::new(2084)) as Arc<dyn ParamBindingGet<usize>>
-        ),
+        xsched::binding::Access::USizeGet(Arc::new(BindingLastGet::new_init(
+            std::sync::atomic::AtomicUsize::new(2084),
+        ))),
         HashMap::new(),
     )));
 
     let lswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
     let rswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
-    let max = Arc::new(sched::binding::ops::GetBinaryOp::new(
+    let max = sched::binding::ops::GetBinaryOp::new(
         core::cmp::max,
         lswap.clone() as Arc<dyn ParamBindingGet<usize>>,
         rswap.clone() as Arc<dyn ParamBindingGet<usize>>,
-    ));
+    );
 
     let mut map = HashMap::new();
     map.insert("left", ParamAccess::new_get(ParamGet::USize(lswap)));
@@ -55,7 +58,7 @@ fn main() -> Result<(), std::io::Error> {
 
     server.add_binding(Arc::new(Instance::new(
         &"max",
-        Access::USizeGet(Arc::new(max as Arc<dyn ParamBindingGet<usize>>)),
+        Access::USizeGet(Arc::new(BindingLastGet::new(max))),
         map,
     )));
 

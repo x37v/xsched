@@ -10,6 +10,7 @@ use oscquery::{
     value::{ClipMode, Get, Range, ValueBuilder},
     OscQueryServer,
 };
+use sched::binding::{last::BindingLast, ParamBindingSet};
 use std::{
     collections::HashMap,
     net::SocketAddr,

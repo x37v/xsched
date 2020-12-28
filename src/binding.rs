@@ -1,7 +1,11 @@
 //! Data binding.
 
 use sched::{
-    binding::{bpm::ClockData, ParamBindingGet, ParamBindingSet},
+    binding::{
+        bpm::ClockData,
+        last::{BindingLastGet, BindingLastGetSet, BindingLastSet},
+        ParamBindingGet, ParamBindingSet,
+    },
     tick::{TickResched, TickSched},
     Float,
 };

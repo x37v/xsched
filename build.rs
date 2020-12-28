@@ -45,13 +45,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             //build the variants
             access_variants.push(quote! {
-                #g(Arc<dyn ParamBindingGet<#t>>),
-                #s(Arc<dyn ParamBindingSet<#t>>),
-                #gs { get: Arc<dyn ParamBindingGet<#t>>, set: Arc<dyn ParamBindingSet<#t>> }
+                #g(Arc<BindingLastGet<#t>>),
+                #s(Arc<BindingLastSet<#t>>),
+                #gs(Arc<BindingLastGetSet<#t>>)
             });
             //get the data type name
             access_data_type_name.push(quote! {
-                Self::#g(..) | Self::#s(..) | Self::#gs { .. } => &#tname
+                Self::#g(..) | Self::#s(..) | Self::#gs(..) => &#tname
             });
             param_data_type_name.push(quote! {
                     Self::Get{ get : ParamGet::#i(..), .. } | Self::Set { set: ParamSet::#i(..), .. } => &#tname
@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             access_access_name.push(quote! {
                 Self::#g(..) => &"get",
                 Self::#s(..) => &"set",
-                Self::#gs { .. } => &"getset"
+                Self::#gs(..) => &"getset"
             });
             pget.push(quote! {
                 #i(::std::sync::Arc<BindingSwapGet<#t>>)
@@ -177,14 +177,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 pub fn #get_ident(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#type_ident>>> {
                     match &self.binding {
                         Access::#g(m) => Some(m.clone()),
-                        Access::#gs { get: m, .. } => Some(m.clone()),
+                        Access::#gs(m) => Some(m.clone() as _),
                         _ => None
                     }
                 }
                 pub fn #set_ident(&self) -> Option<std::sync::Arc<dyn ParamBindingSet<#type_ident>>> {
                     match &self.binding {
                         Access::#s(m) => Some(m.clone()),
-                        Access::#gs { set: m, .. } => Some(m.clone()),
+                        Access::#gs(m) => Some(m.clone() as _),
                         _ => None
                     }
                 }
@@ -259,7 +259,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 bind_prefix: &"Bool",
                 osc_enum: &"Bool",
                 get_func: quote! {
-                    g.upgrade().map_or(false, |g| g.get())
+                    g.upgrade().map_or(false, |g| g.last_get().unwrap_or(false))
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(v));
@@ -271,7 +271,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 bind_prefix: &"U8",
                 osc_enum: &"Int",
                 get_func: quote! {
-                    g.upgrade().map_or(0, |g| g.get() as i32)
+                    g.upgrade().map_or(0, |g| g.last_get().unwrap_or(0) as i32)
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(num::clamp(v, 0, 255) as u8));
@@ -287,7 +287,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 bind_prefix: &"USize",
                 osc_enum: &"Long",
                 get_func: quote! {
-                    g.upgrade().map_or(0i64, |g| g.get() as i64)
+                    g.upgrade().map_or(0i64, |g| g.last_get().unwrap_or(0usize) as i64)
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(std::cmp::max(v, 0i64) as usize));
@@ -303,7 +303,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 bind_prefix: &"ISize",
                 osc_enum: &"Long",
                 get_func: quote! {
-                    g.upgrade().map_or(0i64, |g| g.get() as i64)
+                    g.upgrade().map_or(0i64, |g| g.last_get().unwrap_or(0) as i64)
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(std::cmp::max(v, 0i64) as isize));
@@ -369,9 +369,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
             });
             access_values.push(quote! {
-                Access::#gs { get: g, set: s } => {
-                    let g = Arc::downgrade(&g);
-                    let s = Arc::downgrade(&s);
+                Access::#gs(gs) => {
+                    let g = Arc::downgrade(&gs);
+                    let s = g.clone();
                     let _ = self.server.add_node(
                         oscquery::node::Set::new(
                             name,
