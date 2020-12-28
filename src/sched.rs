@@ -3,7 +3,6 @@ use ::sched::{
     item_sink::{ItemDispose, ItemSink},
     item_source::ItemSource,
     midi::MidiValue,
-    mutex::ArcMutex,
     pqueue::{BinaryHeapQueue, TickPriorityDequeue, TickPriorityEnqueue},
     schedule::ScheduleExecutor,
 };
@@ -11,6 +10,8 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+
+pub type ArcMutex<T> = ::std::sync::Arc<::sched::mutex::Mutex<T>>;
 
 type SchedEnqueue = ArcMutex<dyn TickPriorityEnqueue<EventContainer>>;
 type SchedDequeue = ArcMutex<dyn TickPriorityDequeue<EventContainer>>;
