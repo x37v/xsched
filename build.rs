@@ -252,8 +252,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         pub set_func: TokenStream,
         pub clip: Option<TokenStream>,
         pub range: Option<TokenStream>,
-        pub name: &'static str,
-        pub description: Option<String>,
     }
 
     impl Default for SimpBindingValue {
@@ -266,8 +264,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 set_func: quote! { unimplemented!(); },
                 clip: None,
                 range: None,
-                name: &"",
-                description: None,
             }
         }
     }
