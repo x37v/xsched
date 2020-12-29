@@ -275,7 +275,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 osc_variant: &"Bool",
                 osc_type: &"bool",
                 get_func: quote! {
-                    g.upgrade().map_or(false, |g| g.last_get().unwrap_or(false))
+                    g.upgrade().map_or(false, |g| g.last().unwrap_or(false))
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(v));
@@ -287,7 +287,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 osc_variant: &"Int",
                 osc_type: &"i32",
                 get_func: quote! {
-                    g.upgrade().map_or(0, |g| g.last_get().unwrap_or(0) as i32)
+                    g.upgrade().map_or(0, |g| g.last().unwrap_or(0) as i32)
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(num::clamp(v, 0, 255) as u8));
@@ -305,7 +305,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 osc_variant: &"Long",
                 osc_type: &"i64",
                 get_func: quote! {
-                    g.upgrade().map_or(0i64, |g| g.last_get().unwrap_or(0usize) as i64)
+                    g.upgrade().map_or(0i64, |g| g.last().unwrap_or(0usize) as i64)
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(std::cmp::max(v, 0i64) as usize));
@@ -323,7 +323,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 osc_variant: &"Long",
                 osc_type: &"i64",
                 get_func: quote! {
-                    g.upgrade().map_or(0i64, |g| g.last_get().unwrap_or(0) as i64)
+                    g.upgrade().map_or(0i64, |g| g.last().unwrap_or(0) as i64)
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(v as isize));
@@ -335,7 +335,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 osc_variant: &"Double",
                 osc_type: &"f64",
                 get_func: quote! {
-                    g.upgrade().map_or(0.0, |g| g.last_get().unwrap_or(0.0))
+                    g.upgrade().map_or(0.0, |g| g.last().unwrap_or(0.0))
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(v));
@@ -432,12 +432,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             quote! {
                 impl OSCQueryHandler {
                     fn add_binding_value(&self, instance: &Arc<Instance>, handle: ::oscquery::root::NodeHandle) {
+                        fn to_get<T>(weak: &Weak<dyn ::sched::binding::last::BindingLast<T>>) -> T 
+                            where T: Default + Copy + Send + Sync
+                        {
+                            weak.upgrade().map_or(T::default(), |g| g.last().unwrap_or(T::default()))
+                        }
+                        let tick_resched_range = 
+                            Range::Vals(vec![
+                                "None",
+                                "Relative",
+                                "ContextRelative"
+                            ].iter().map(|s| s.to_string().into()).collect());
+
                         let name = &"value";
                         let description: Option<&str> = Some(&"binding value");
-                        let to_clock_get = |weak: &Weak<dyn ::sched::binding::last::BindingLast<ClockData>>| {
-                            weak.upgrade().map_or(ClockData::default(), |g| g.last_get().unwrap_or(ClockData::default()))
-                        };
-
                         match instance.binding() {
                             #(#access_values),*
                             Access::ClockDataGet(g) => {
@@ -452,7 +460,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         vec![
                                         ParamGet::Double(
                                             ValueBuilder::new(Arc::new(GetFunc::new(move || {
-                                                to_clock_get(&bpmg).bpm()
+                                                to_get::<ClockData>(&bpmg).bpm()
                                             })) as _)
                                             .with_clip_mode(ClipMode::Low)
                                             .with_range(Range::Min(0.0))
@@ -460,7 +468,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         ),
                                         ParamGet::Long(
                                             ValueBuilder::new(Arc::new(GetFunc::new(move || {
-                                                to_clock_get(& ppqg).ppq() as i64
+                                                to_get::<ClockData>(& ppqg).ppq() as i64
                                             })) as _)
                                             .with_clip_mode(ClipMode::Low)
                                             .with_range(Range::Min(1))
@@ -468,7 +476,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         ),
                                         ParamGet::Double(
                                             ValueBuilder::new(Arc::new(GetFunc::new(move || {
-                                                to_clock_get(&microg).period_micros()
+                                                to_get::<ClockData>(&microg).period_micros()
                                             })) as _)
                                             .with_clip_mode(ClipMode::Low)
                                             .with_range(Range::Min(0.0))
@@ -549,9 +557,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         vec![
                                         ParamGetSet::Double(
                                             ValueBuilder::new(Arc::new(GetFunc::new(move || {
-                                                let bpm = to_clock_get(&bpmg).bpm();
-                                                println!("bpm {:?}", bpm);
-                                                bpm
+                                                to_get::<ClockData>(&bpmg).bpm()
                                             })) as _)
                                             .with_clip_mode(ClipMode::Low)
                                             .with_range(Range::Min(0.0))
@@ -559,7 +565,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         ),
                                         ParamGetSet::Long(
                                             ValueBuilder::new(Arc::new(GetFunc::new(move || {
-                                                to_clock_get(& ppqg).ppq() as i64
+                                                to_get::<ClockData>(& ppqg).ppq() as i64
                                             })) as _)
                                             .with_clip_mode(ClipMode::Low)
                                             .with_range(Range::Min(1))
@@ -567,7 +573,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         ),
                                         ParamGetSet::Double(
                                             ValueBuilder::new(Arc::new(GetFunc::new(move || {
-                                                to_clock_get(&microg).period_micros()
+                                                to_get::<ClockData>(&microg).period_micros()
                                             })) as _)
                                             .with_clip_mode(ClipMode::Low)
                                             .with_range(Range::Min(0.0))
@@ -585,7 +591,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                             //update all the clock data parameters and then set
                                                             let mut args = args.iter();
                                                             //by default, set to the last we had
-                                                            let mut data: ClockData = to_clock_get(&bl);
+                                                            let mut data: ClockData = to_get::<ClockData>(&bl);
                                                             if let Some(::oscquery::osc::OscType::Double(v)) = args.next() {
                                                                 data.set_bpm(0f64.max(*v));
                                                                 if let Some(::oscquery::osc::OscType::Long(v)) = args.next() {
@@ -595,11 +601,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                                     }
                                                                 }
                                                                 s.set(data);
-                                                                g.upgrade().map(|g| {
-                                                                    let _ = g.get();
-                                                                });
                                                             }
-                                                            println!("data {:?}", data);
                                                         }
                                                         None
                                                     }))
@@ -608,6 +610,105 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             Some(handle),
                                             ).unwrap();
                             },
+                            Access::TickReschedGet(g) => {
+                                let g = Arc::downgrade(&g) as Weak<dyn ::sched::binding::last::BindingLast<TickResched>>;
+                                let gt = g.clone();
+                                let gv = g.clone();
+                                let _ = self.server.add_node(
+                                    oscquery::node::Get::new(
+                                        "value",
+                                        Some(&"variant, value"),
+                                        vec![
+                                        ParamGet::String(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                match to_get::<TickResched>(&gt) {
+                                                    TickResched::None => "None",
+                                                    TickResched::Relative(..) => "Relative",
+                                                    TickResched::ContextRelative(..) => "ContextRelative",
+                                                }.to_string()
+                                            })) as _)
+                                            .with_range(tick_resched_range.clone())
+                                            .build(),
+                                        ),
+                                        ParamGet::Long(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                match to_get::<TickResched>(&gv) {
+                                                    TickResched::None => 0,
+                                                    TickResched::Relative(v) => v as i64,
+                                                    TickResched::ContextRelative(v) => v as i64,
+                                                }
+                                            })) as _)
+                                            .build(),
+                                        )
+                                        ],
+                                        )
+                                            .unwrap(),
+                                            Some(handle),
+                                            ).unwrap();
+                            },
+                            Access::TickReschedGetSet(gs) => {
+                                let s = Arc::downgrade(&gs) as Weak<dyn ParamBindingSet<TickResched>>;
+                                let g = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::last::BindingLast<TickResched>>;
+                                let gt = g.clone();
+                                let gv = g.clone();
+                                let _ = self.server.add_node(
+                                    oscquery::node::GetSet::new(
+                                        "value",
+                                        Some(&"variant, value"),
+                                        vec![
+                                        ParamGetSet::String(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                match to_get::<TickResched>(&gt) {
+                                                    TickResched::None => "None",
+                                                    TickResched::Relative(..) => "Relative",
+                                                    TickResched::ContextRelative(..) => "ContextRelative",
+                                                }.to_string()
+                                            })) as _)
+                                            .with_range(tick_resched_range.clone())
+                                            .build(),
+                                        ),
+                                        ParamGetSet::Long(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                match to_get::<TickResched>(&gv) {
+                                                    TickResched::None => 0,
+                                                    TickResched::Relative(v) => v as i64,
+                                                    TickResched::ContextRelative(v) => v as i64,
+                                                }
+                                            })) as _)
+                                            .build(),
+                                        )
+                                        ],
+                                        Some(
+                                            Box::new(OscUpdateFunc::new(move |
+                                                    args: &Vec<oscquery::osc::OscType>,
+                                                    _addr: Option<SocketAddr>,
+                                                    _time: Option<(u32, u32)>,
+                                                    _handle: &NodeHandle,
+                                                    | -> Option<OscWriteCallback> {
+                                                        if let Some(s) = s.upgrade() {
+                                                            let mut args = args.iter();
+                                                            if let Some(::oscquery::osc::OscType::String(v)) = args.next() {
+                                                                let n = std::cmp::max(0, if let Some(::oscquery::osc::OscType::Long(n)) = args.next() {
+                                                                    *n
+                                                                } else {
+                                                                    0
+                                                                }) as usize;
+                                                                let data = match v.as_str() {
+                                                                    "Relative" => TickResched::Relative(n),
+                                                                    "ContextRelative" => TickResched::ContextRelative(n),
+                                                                    "None" => TickResched::None,
+                                                                    _ => to_get::<TickResched>(&g)
+                                                                };
+                                                                s.set(data);
+                                                            }
+                                                        }
+                                                        None
+                                                    }))
+                                        )
+                                            ).unwrap(),
+                                            Some(handle))
+                                                .unwrap();
+                            }
                             _ => ()
                         }
                     }

@@ -11,11 +11,15 @@ use oscquery::{
     value::{ClipMode, Get, Range, Value, ValueBuilder},
     OscQueryServer,
 };
-use sched::binding::{
-    bpm::{Clock, ClockData},
-    last::BindingLast,
-    ParamBindingGet, ParamBindingSet,
+use sched::{
+    binding::{
+        bpm::{Clock, ClockData},
+        last::BindingLast,
+        ParamBindingGet, ParamBindingSet,
+    },
+    tick::{TickResched, TickSched},
 };
+
 use std::{
     collections::HashMap,
     net::SocketAddr,
