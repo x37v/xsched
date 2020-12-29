@@ -72,6 +72,16 @@ fn main() -> Result<(), std::io::Error> {
         HashMap::new(),
     )));
 
+    server.add_binding(Arc::new(Instance::new(
+        &"value",
+        Access::TickReschedGet(Arc::new(BindingLastGet::new_init(
+            sched::binding::spinlock::SpinlockParamBinding::new(
+                sched::tick::TickResched::Relative(20),
+            ),
+        ))),
+        HashMap::new(),
+    )));
+
     while run.load(Ordering::Acquire) {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
