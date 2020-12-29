@@ -144,34 +144,27 @@ impl OSCQueryHandler {
         )?;
         let xsched_handle = server
             .add_node(
-                oscquery::node::Container::new("xsched", Some("xsched scheduler root"))
-                    .unwrap()
-                    .into(),
+                oscquery::node::Container::new("xsched", Some("xsched scheduler root")).unwrap(),
                 None,
             )
             .unwrap();
         let bindings_base = server
             .add_node(
                 oscquery::node::Container::new("bindings", Some("xsched scheduler bindings"))
-                    .unwrap()
-                    .into(),
+                    .unwrap(),
                 Some(xsched_handle),
             )
             .unwrap();
         let bindings_handle = server
             .add_node(
-                oscquery::node::Container::new("uuids", Some("bindings by uuid"))
-                    .unwrap()
-                    .into(),
+                oscquery::node::Container::new("uuids", Some("bindings by uuid")).unwrap(),
                 Some(bindings_base),
             )
             .unwrap();
         //TODO aliases
         let graph_handle = server
             .add_node(
-                oscquery::node::Container::new("graph", Some("xsched scheduler graph"))
-                    .unwrap()
-                    .into(),
+                oscquery::node::Container::new("graph", Some("xsched scheduler graph")).unwrap(),
                 Some(xsched_handle),
             )
             .unwrap();
@@ -206,7 +199,7 @@ impl OSCQueryHandler {
             let handle = self
                 .server
                 .add_node(
-                    oscquery::node::Container::new(uuids, None).unwrap().into(),
+                    oscquery::node::Container::new(uuids, None).unwrap(),
                     Some(self.bindings_handle),
                 )
                 .unwrap();
@@ -232,14 +225,13 @@ impl OSCQueryHandler {
                     .server
                     .add_node(
                         oscquery::node::Get::new(
-                            "type".to_string(),
-                            Some("type_name, access_name, data_type_name".into()),
+                            "type",
+                            Some("type_name, access_name, data_type_name"),
                             vec![type_name, access_name, data_type_name]
                                 .into_iter()
                                 .map(|v| ParamGet::String(ValueBuilder::new(v as _).build())),
                         )
-                        .unwrap()
-                        .into(),
+                        .unwrap(),
                         Some(handle),
                     )
                     .unwrap();
@@ -262,9 +254,7 @@ impl OSCQueryHandler {
         let phandle = self
             .server
             .add_node(
-                ::oscquery::node::Container::new("params".to_string(), None)
-                    .unwrap()
-                    .into(),
+                ::oscquery::node::Container::new("params", None).unwrap(),
                 Some(handle.clone()),
             )
             .unwrap();
@@ -280,15 +270,14 @@ impl OSCQueryHandler {
                 .server
                 .add_node(
                     ::oscquery::node::GetSet::new(
-                        key.to_string(),
-                        Some("binding_id".into()),
+                        key,
+                        Some("binding_id"),
                         vec![::oscquery::param::ParamGetSet::String(
                             ValueBuilder::new(wrapper as _).build(),
                         )],
                         Some(handler),
                     )
-                    .unwrap()
-                    .into(),
+                    .unwrap(),
                     Some(phandle),
                 )
                 .unwrap();

@@ -371,8 +371,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .build(),
                             )],
                         )
-                        .unwrap()
-                        .into(),
+                        .unwrap(),
                         Some(handle),
                     );
                     }
@@ -394,8 +393,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             )],
                             None
                         )
-                        .unwrap()
-                        .into(),
+                        .unwrap(),
                         Some(handle),
                     );
                     }
@@ -423,8 +421,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             )],
                             None,
                         )
-                        .unwrap()
-                        .into(),
+                        .unwrap(),
                         Some(handle),
                     );
                 }
@@ -479,8 +476,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         ),
                                         ],
                                         )
-                                            .unwrap()
-                                            .into(),
+                                            .unwrap(),
                                             Some(handle),
                                             ).unwrap();
                             },
@@ -535,8 +531,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             None
                                         }))
                                         ))
-                                            .unwrap()
-                                            .into(),
+                                            .unwrap(),
                                             Some(handle),
                                             ).unwrap();
                             },
@@ -609,8 +604,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                         None
                                                     }))
                                         ))
-                                            .unwrap()
-                                            .into(),
+                                            .unwrap(),
                                             Some(handle),
                                             ).unwrap();
                             },
