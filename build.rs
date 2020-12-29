@@ -451,19 +451,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = self.server.add_node(
                                     oscquery::node::Get::new(
                                         "value".into(),
-                                        Some("beats per minute, period micros, ppq".into()),
+                                        Some("beats per minute, ppq, period micros".into()),
                                         vec![
                                         ParamGet::Double(
                                             ValueBuilder::new(Arc::new(GetFunc::new(move || {
                                                 to_clock_get(&bpmg).bpm()
-                                            })) as _)
-                                            .with_clip_mode(ClipMode::Low)
-                                            .with_range(Range::Min(0.0))
-                                            .build(),
-                                        ),
-                                        ParamGet::Double(
-                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
-                                                to_clock_get(&microg).period_micros()
                                             })) as _)
                                             .with_clip_mode(ClipMode::Low)
                                             .with_range(Range::Min(0.0))
@@ -475,6 +467,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             })) as _)
                                             .with_clip_mode(ClipMode::Low)
                                             .with_range(Range::Min(1))
+                                            .build(),
+                                        ),
+                                        ParamGet::Double(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                to_clock_get(&microg).period_micros()
+                                            })) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0.0))
                                             .build(),
                                         ),
                                         ],
@@ -493,14 +493,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = self.server.add_node(
                                     oscquery::node::Set::new(
                                         "value".into(),
-                                        Some("beats per minute, period micros, ppq".into()),
+                                        Some("beats per minute, ppq, period micros".into()),
                                         vec![
-                                        ParamSet::Double(
-                                            ValueBuilder::new(Arc::new(()) as _)
-                                            .with_clip_mode(ClipMode::Low)
-                                            .with_range(Range::Min(0.0))
-                                            .build(),
-                                        ),
                                         ParamSet::Double(
                                             ValueBuilder::new(Arc::new(()) as _)
                                             .with_clip_mode(ClipMode::Low)
@@ -511,6 +505,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             ValueBuilder::new(Arc::new(()) as _)
                                             .with_clip_mode(ClipMode::Low)
                                             .with_range(Range::Min(1))
+                                            .build(),
+                                        ),
+                                        ParamSet::Double(
+                                            ValueBuilder::new(Arc::new(()) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0.0))
                                             .build(),
                                         ),
                                         ],
@@ -527,10 +527,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 let mut data: ClockData = Default::default();
                                                 if let Some(::oscquery::osc::OscType::Double(v)) = args.next() {
                                                     data.set_bpm(0f64.max(*v));
-                                                    if let Some(::oscquery::osc::OscType::Double(v)) = args.next() {
-                                                        data.set_period_micros(0f64.max(*v));
-                                                        if let Some(::oscquery::osc::OscType::Long(v)) = args.next() {
-                                                            data.set_ppq(std::cmp::max(*v, 1) as usize);
+                                                    if let Some(::oscquery::osc::OscType::Long(v)) = args.next() {
+                                                        data.set_ppq(std::cmp::max(*v, 1) as usize);
+                                                        if let Some(::oscquery::osc::OscType::Double(v)) = args.next() {
+                                                            data.set_period_micros(0f64.max(*v));
                                                         }
                                                     }
                                                     s.set(data);
@@ -546,26 +546,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             },
                             Access::ClockDataGetSet(gs) => {
                                 let s = Arc::downgrade(&gs) as Weak<dyn ParamBindingSet<ClockData>>;
-                                let g = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::last::BindingLast<ClockData>>;
-                                let bpmg = g.clone();
-                                let ppqg = g.clone();
-                                let microg = g.clone();
+                                let g = Arc::downgrade(&gs) as Weak<dyn ParamBindingGet<ClockData>>;
+                                let bl = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::last::BindingLast<ClockData>>;
+                                let bpmg = bl.clone();
+                                let ppqg = bl.clone();
+                                let microg = bl.clone();
                                 let _ = self.server.add_node(
                                     oscquery::node::GetSet::new(
                                         "value".into(),
-                                        Some("beats per minute, period micros, ppq".into()),
+                                        Some("beats per minute, ppq, period micros".into()),
                                         vec![
                                         ParamGetSet::Double(
                                             ValueBuilder::new(Arc::new(GetFunc::new(move || {
-                                                to_clock_get(&bpmg).bpm()
-                                            })) as _)
-                                            .with_clip_mode(ClipMode::Low)
-                                            .with_range(Range::Min(0.0))
-                                            .build(),
-                                        ),
-                                        ParamGetSet::Double(
-                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
-                                                to_clock_get(&microg).period_micros()
+                                                let bpm = to_clock_get(&bpmg).bpm();
+                                                println!("bpm {:?}", bpm);
+                                                bpm
                                             })) as _)
                                             .with_clip_mode(ClipMode::Low)
                                             .with_range(Range::Min(0.0))
@@ -579,29 +574,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             .with_range(Range::Min(1))
                                             .build(),
                                         ),
+                                        ParamGetSet::Double(
+                                            ValueBuilder::new(Arc::new(GetFunc::new(move || {
+                                                to_clock_get(&microg).period_micros()
+                                            })) as _)
+                                            .with_clip_mode(ClipMode::Low)
+                                            .with_range(Range::Min(0.0))
+                                            .build(),
+                                        ),
                                         ],
                                         Some(
                                             Box::new(OscUpdateFunc::new(move |
                                                     args: &Vec<oscquery::osc::OscType>,
                                                     _addr: Option<SocketAddr>,
                                                     _time: Option<(u32, u32)>,
-                                                    handle: &NodeHandle,
+                                                    _handle: &NodeHandle,
                                                     | -> Option<OscWriteCallback> {
                                                         if let Some(s) = s.upgrade() {
                                                             //update all the clock data parameters and then set
                                                             let mut args = args.iter();
                                                             //by default, set to the last we had
-                                                            let mut data: ClockData = to_clock_get(&g);
+                                                            let mut data: ClockData = to_clock_get(&bl);
                                                             if let Some(::oscquery::osc::OscType::Double(v)) = args.next() {
                                                                 data.set_bpm(0f64.max(*v));
-                                                                if let Some(::oscquery::osc::OscType::Double(v)) = args.next() {
-                                                                    data.set_period_micros(0f64.max(*v));
-                                                                    if let Some(::oscquery::osc::OscType::Long(v)) = args.next() {
-                                                                        data.set_ppq(std::cmp::max(*v, 1) as usize);
+                                                                if let Some(::oscquery::osc::OscType::Long(v)) = args.next() {
+                                                                    data.set_ppq(std::cmp::max(*v, 1) as usize);
+                                                                    if let Some(::oscquery::osc::OscType::Double(v)) = args.next() {
+                                                                        data.set_period_micros(0f64.max(*v));
                                                                     }
                                                                 }
                                                                 s.set(data);
+                                                                g.upgrade().map(|g| {
+                                                                    let _ = g.get();
+                                                                });
                                                             }
+                                                            println!("data {:?}", data);
                                                         }
                                                         None
                                                     }))

@@ -62,6 +62,16 @@ fn main() -> Result<(), std::io::Error> {
         map,
     )));
 
+    server.add_binding(Arc::new(Instance::new(
+        &"value",
+        Access::ClockDataGetSet(Arc::new(BindingLastGetSet::new(
+            sched::binding::spinlock::SpinlockParamBinding::new(
+                sched::binding::bpm::ClockData::default(),
+            ),
+        ))),
+        HashMap::new(),
+    )));
+
     while run.load(Ordering::Acquire) {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }

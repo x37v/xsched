@@ -7,14 +7,14 @@ use oscquery::{
     func_wrap::{GetFunc, GetSetFuncs, OscUpdateFunc, SetFunc},
     param::{ParamGet, ParamGetSet, ParamSet},
     root::NodeHandle,
-    root::OscWriteCallback,
+    root::{OscQueryGraph, OscWriteCallback},
     value::{ClipMode, Get, Range, Value, ValueBuilder},
     OscQueryServer,
 };
 use sched::binding::{
     bpm::{Clock, ClockData},
     last::BindingLast,
-    ParamBindingSet,
+    ParamBindingGet, ParamBindingSet,
 };
 use std::{
     collections::HashMap,
