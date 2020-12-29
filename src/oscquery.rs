@@ -5,9 +5,9 @@ use crate::{
 };
 use oscquery::{
     func_wrap::{GetFunc, GetSetFuncs, OscUpdateFunc, SetFunc},
+    node::{Container as _, Get as _, GetSet as _, Set as _},
     param::{ParamGet, ParamGetSet, ParamSet},
-    root::NodeHandle,
-    root::{OscQueryGraph, OscWriteCallback},
+    root::{NodeHandle, OscQueryGraph, OscWriteCallback},
     value::{ClipMode, Get, Range, Value, ValueBuilder},
     OscQueryServer,
 };
@@ -144,29 +144,23 @@ impl OSCQueryHandler {
         )?;
         let xsched_handle = server
             .add_node(
-                oscquery::node::Container::new(
-                    "xsched".into(),
-                    Some("xsched scheduler root".into()),
-                )
-                .unwrap()
-                .into(),
+                oscquery::node::Container::new("xsched", Some("xsched scheduler root"))
+                    .unwrap()
+                    .into(),
                 None,
             )
             .unwrap();
         let bindings_base = server
             .add_node(
-                oscquery::node::Container::new(
-                    "bindings".into(),
-                    Some("xsched scheduler bindings".into()),
-                )
-                .unwrap()
-                .into(),
+                oscquery::node::Container::new("bindings", Some("xsched scheduler bindings"))
+                    .unwrap()
+                    .into(),
                 Some(xsched_handle),
             )
             .unwrap();
         let bindings_handle = server
             .add_node(
-                oscquery::node::Container::new("uuids".into(), Some("bindings by uuid".into()))
+                oscquery::node::Container::new("uuids", Some("bindings by uuid"))
                     .unwrap()
                     .into(),
                 Some(bindings_base),
@@ -175,12 +169,9 @@ impl OSCQueryHandler {
         //TODO aliases
         let graph_handle = server
             .add_node(
-                oscquery::node::Container::new(
-                    "graph".into(),
-                    Some("xsched scheduler graph".into()),
-                )
-                .unwrap()
-                .into(),
+                oscquery::node::Container::new("graph", Some("xsched scheduler graph"))
+                    .unwrap()
+                    .into(),
                 Some(xsched_handle),
             )
             .unwrap();

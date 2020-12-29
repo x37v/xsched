@@ -435,8 +435,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             quote! {
                 impl OSCQueryHandler {
                     fn add_binding_value(&self, instance: &Arc<Instance>, handle: ::oscquery::root::NodeHandle) {
-                        let name = "value".to_string();
-                        let description: Option<String> = Some("binding value".into());
+                        let name = &"value";
+                        let description: Option<&str> = Some(&"binding value");
                         let to_clock_get = |weak: &Weak<dyn ::sched::binding::last::BindingLast<ClockData>>| {
                             weak.upgrade().map_or(ClockData::default(), |g| g.last_get().unwrap_or(ClockData::default()))
                         };
@@ -450,8 +450,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let microg = g.clone();
                                 let _ = self.server.add_node(
                                     oscquery::node::Get::new(
-                                        "value".into(),
-                                        Some("beats per minute, ppq, period micros".into()),
+                                        "value",
+                                        Some("beats per minute, ppq, period micros"),
                                         vec![
                                         ParamGet::Double(
                                             ValueBuilder::new(Arc::new(GetFunc::new(move || {
@@ -486,14 +486,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             },
                             Access::ClockDataSet(gs) => {
                                 let s = Arc::downgrade(&gs) as Weak<dyn ParamBindingSet<ClockData>>;
-                                let g = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::last::BindingLast<ClockData>>;
-                                let bpmg = g.clone();
-                                let ppqg = g.clone();
-                                let microg = g.clone();
                                 let _ = self.server.add_node(
                                     oscquery::node::Set::new(
-                                        "value".into(),
-                                        Some("beats per minute, ppq, period micros".into()),
+                                        "value",
+                                        Some("beats per minute, ppq, period micros"),
                                         vec![
                                         ParamSet::Double(
                                             ValueBuilder::new(Arc::new(()) as _)
@@ -553,8 +549,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let microg = bl.clone();
                                 let _ = self.server.add_node(
                                     oscquery::node::GetSet::new(
-                                        "value".into(),
-                                        Some("beats per minute, ppq, period micros".into()),
+                                        "value",
+                                        Some("beats per minute, ppq, period micros"),
                                         vec![
                                         ParamGetSet::Double(
                                             ValueBuilder::new(Arc::new(GetFunc::new(move || {
