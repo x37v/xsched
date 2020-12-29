@@ -4,9 +4,10 @@ use crate::{
     param::ParamMapGet,
 };
 use oscquery::{
-    func_wrap::{GetFunc, GetSetFuncs, SetFunc},
+    func_wrap::{GetFunc, GetSetFuncs, OscUpdateFunc, SetFunc},
     param::{ParamGet, ParamGetSet, ParamSet},
     root::NodeHandle,
+    root::OscWriteCallback,
     value::{ClipMode, Get, Range, Value, ValueBuilder},
     OscQueryServer,
 };
