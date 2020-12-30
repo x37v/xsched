@@ -17,7 +17,7 @@ use sched::{
         last::BindingLast,
         ParamBindingGet, ParamBindingSet,
     },
-    tick::{TickResched},
+    tick::TickResched,
 };
 
 use std::{
@@ -25,7 +25,7 @@ use std::{
     net::SocketAddr,
     str::FromStr,
     sync::{
-        mpsc::{SyncSender},
+        mpsc::{Receiver, SyncSender},
         Arc, Weak,
     },
 };
@@ -58,14 +58,14 @@ struct ParamOSCQueryOscUpdate {
 }
 
 pub struct OSCQueryHandler {
-    bindings: std::sync::Mutex<HashMap<String, Arc<Instance>>>,
+    bindings: std::sync::Mutex<HashMap<uuid::Uuid, Arc<Instance>>>,
     graph: std::sync::Mutex<HashMap<String, Arc<GraphItem>>>,
     command_sender: SyncSender<Command>,
     server: OscQueryServer,
     xsched_handle: NodeHandle,
     bindings_handle: NodeHandle,
     graph_handle: NodeHandle,
-    command_thread: Option<std::thread::JoinHandle<()>>,
+    command_receiver: Receiver<Command>,
 }
 
 impl ParamOSCQueryGetSet {
@@ -173,12 +173,6 @@ impl OSCQueryHandler {
             )
             .unwrap();
         let (command_sender, command_receiver) = std::sync::mpsc::sync_channel(256);
-        let command_thread = std::thread::spawn(move || {
-            for _cmd in command_receiver.iter() {
-                //XXX
-                println!("command_receiver got cmd");
-            }
-        });
         let s = Self {
             server,
             xsched_handle,
@@ -187,7 +181,7 @@ impl OSCQueryHandler {
             bindings: Default::default(),
             graph: Default::default(),
             command_sender,
-            command_thread: Some(command_thread),
+            command_receiver,
         };
 
         //TODO add bindings and graph
@@ -196,14 +190,11 @@ impl OSCQueryHandler {
 
     pub fn add_binding(&self, binding: Arc<Instance>) {
         if let Ok(mut guard) = self.bindings.lock() {
-            let uuids = map_uuid(&binding.uuid());
-            guard.insert(uuids.clone(), binding.clone());
-
-            //XXX do we need to keep track of the handle?
+            guard.insert(binding.uuid(), binding.clone());
             let handle = self
                 .server
                 .add_node(
-                    oscquery::node::Container::new(uuids, None).unwrap(),
+                    oscquery::node::Container::new(map_uuid(&binding.uuid()), None).unwrap(),
                     Some(self.bindings_handle),
                 )
                 .unwrap();
@@ -285,6 +276,54 @@ impl OSCQueryHandler {
                     Some(phandle),
                 )
                 .unwrap();
+        }
+    }
+
+    fn bind_param(
+        &self,
+        owner: ParamOwner,
+        handle: NodeHandle,
+        param_name: &'static str,
+        param_id: String,
+    ) {
+        if let Ok(guard) = self.bindings.lock() {
+            match owner {
+                //bind parameters
+                ParamOwner::Binding(binding_id) => {
+                    if let Some(binding) = guard.get(&binding_id) {
+                        if param_id.is_empty() {
+                            binding.params().unbind(param_name);
+                        } else {
+                            if let Ok(param_id) = ::uuid::Uuid::from_str(&param_id) {
+                                //TODO cycle detection
+                                //TODO error handling
+                                if let Some(param) = guard.get(&param_id) {
+                                    let _r = binding.params().try_bind(param_name, param.clone());
+                                }
+                            }
+                        }
+                        self.server.trigger(handle);
+                    }
+                }
+            }
+        }
+    }
+
+    fn handle_command(&self, cmd: Command) {
+        match cmd {
+            Command::BindParam {
+                owner,
+                handle,
+                param_name,
+                param_id,
+            } => self.bind_param(owner, handle, param_name, param_id),
+        }
+    }
+
+    //TODO timeout?
+    pub fn process(&mut self) {
+        while let Ok(cmd) = self.command_receiver.try_recv() {
+            self.handle_command(cmd);
         }
     }
 }

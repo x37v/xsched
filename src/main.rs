@@ -1,7 +1,4 @@
-use sched::binding::{
-    last::{BindingLastGet},
-    ParamBindingGet,
-};
+use sched::binding::{last::BindingLastGet, ParamBindingGet};
 use xsched::{
     binding::{Access, Instance},
     graph::GraphItem,
@@ -35,7 +32,7 @@ fn main() -> Result<(), std::io::Error> {
 
     let sched = Sched::new();
     let _jack = Jack::new(sched);
-    let server = OSCQueryHandler::new(bindings, graph)?;
+    let mut server = OSCQueryHandler::new(bindings, graph)?;
     server.add_binding(Arc::new(Instance::new(
         &"value",
         std::sync::atomic::AtomicUsize::new(2084),
@@ -73,7 +70,8 @@ fn main() -> Result<(), std::io::Error> {
     )));
 
     while run.load(Ordering::Acquire) {
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        server.process();
+        std::thread::sleep(std::time::Duration::from_millis(5));
     }
     Ok(())
 }
