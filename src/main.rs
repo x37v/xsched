@@ -38,9 +38,7 @@ fn main() -> Result<(), std::io::Error> {
     let server = OSCQueryHandler::new(bindings, graph)?;
     server.add_binding(Arc::new(Instance::new(
         &"value",
-        xsched::binding::Access::USizeGet(Arc::new(BindingLastGet::new_init(
-            std::sync::atomic::AtomicUsize::new(2084),
-        ))),
+        std::sync::atomic::AtomicUsize::new(2084),
         HashMap::new(),
     )));
 
@@ -64,21 +62,13 @@ fn main() -> Result<(), std::io::Error> {
 
     server.add_binding(Arc::new(Instance::new(
         &"value",
-        Access::ClockDataGetSet(Arc::new(BindingLastGetSet::new(
-            sched::binding::spinlock::SpinlockParamBinding::new(
-                sched::binding::bpm::ClockData::default(),
-            ),
-        ))),
+        sched::binding::bpm::ClockData::default(),
         HashMap::new(),
     )));
 
     server.add_binding(Arc::new(Instance::new(
         &"value",
-        Access::TickReschedGet(Arc::new(BindingLastGet::new_init(
-            sched::binding::spinlock::SpinlockParamBinding::new(
-                sched::tick::TickResched::Relative(20),
-            ),
-        ))),
+        sched::tick::TickResched::Relative(20),
         HashMap::new(),
     )));
 
