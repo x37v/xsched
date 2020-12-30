@@ -1,5 +1,5 @@
 use sched::binding::{
-    last::{BindingLastGet, BindingLastGetSet},
+    last::{BindingLastGet},
     ParamBindingGet,
 };
 use xsched::{

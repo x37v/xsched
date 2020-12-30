@@ -17,7 +17,7 @@ use sched::{
         last::BindingLast,
         ParamBindingGet, ParamBindingSet,
     },
-    tick::{TickResched, TickSched},
+    tick::{TickResched},
 };
 
 use std::{
@@ -25,7 +25,7 @@ use std::{
     net::SocketAddr,
     str::FromStr,
     sync::{
-        mpsc::{Receiver, SyncSender},
+        mpsc::{SyncSender},
         Arc, Weak,
     },
 };
