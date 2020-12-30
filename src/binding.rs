@@ -70,6 +70,56 @@ impl ParamMapGet for Instance {
     }
 }
 
+impl From<::std::sync::atomic::AtomicBool> for Access {
+    fn from(binding: ::std::sync::atomic::AtomicBool) -> Self {
+        Self::new_bool_get_set_init(binding)
+    }
+}
+
+impl From<::std::sync::atomic::AtomicU8> for Access {
+    fn from(binding: ::std::sync::atomic::AtomicU8) -> Self {
+        Self::new_u8_get_set_init(binding)
+    }
+}
+
+impl From<::std::sync::atomic::AtomicUsize> for Access {
+    fn from(binding: ::std::sync::atomic::AtomicUsize) -> Self {
+        Self::new_usize_get_set_init(binding)
+    }
+}
+
+impl From<::std::sync::atomic::AtomicIsize> for Access {
+    fn from(binding: ::std::sync::atomic::AtomicIsize) -> Self {
+        Self::new_isize_get_set_init(binding)
+    }
+}
+
+impl From<Float> for Access {
+    fn from(data: Float) -> Self {
+        Self::new_float_get_set_init(sched::binding::spinlock::SpinlockParamBinding::new(data))
+    }
+}
+
+impl From<TickSched> for Access {
+    fn from(data: TickSched) -> Self {
+        Self::new_tick_sched_get_set_init(sched::binding::spinlock::SpinlockParamBinding::new(data))
+    }
+}
+
+impl From<TickResched> for Access {
+    fn from(data: TickResched) -> Self {
+        Self::new_tick_resched_get_set_init(sched::binding::spinlock::SpinlockParamBinding::new(
+            data,
+        ))
+    }
+}
+
+impl From<ClockData> for Access {
+    fn from(data: ClockData) -> Self {
+        Self::new_clock_data_get_set_init(sched::binding::spinlock::SpinlockParamBinding::new(data))
+    }
+}
+
 //pull in the codegen
 include!(concat!(env!("OUT_DIR"), "/binding.rs"));
 

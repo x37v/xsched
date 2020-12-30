@@ -61,23 +61,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 access_news.push(quote! {
                     #[doc = #gnew_doc]
-                    pub fn #gnew(binding: Arc<dyn ParamBindingGet<#data_type>>) -> Self {
+                    pub fn #gnew<B: ParamBindingGet<#data_type> + 'static>(binding: B) -> Self {
                         Self::#g(Arc::new(BindingLastGet::new(binding)))
                     }
                     #[doc = #gnew_init_doc]
-                    pub fn #gnew_init(binding: Arc<dyn ParamBindingGet<#data_type>>) -> Self {
+                    pub fn #gnew_init<B: ParamBindingGet<#data_type> + 'static>(binding: B) -> Self {
                         Self::#g(Arc::new(BindingLastGet::new_init(binding)))
                     }
                     #[doc = #snew_doc]
-                    pub fn #snew(binding: Arc<dyn ParamBindingSet<#data_type>>) -> Self {
+                    pub fn #snew<B: ParamBindingSet<#data_type> + 'static>(binding: B) -> Self {
                         Self::#s(Arc::new(BindingLastSet::new(binding)))
                     }
                     #[doc = #gsnew_doc]
-                    pub fn #gsnew(binding: Arc<dyn ParamBinding<#data_type>>) -> Self {
+                    pub fn #gsnew<B: ParamBinding<#data_type> + 'static>(binding: B) -> Self {
                         Self::#gs(Arc::new(BindingLastGetSet::new(binding)))
                     }
                     #[doc = #gsnew_init_doc]
-                    pub fn #gsnew_init(binding: Arc<dyn ParamBinding<#data_type>>) -> Self {
+                    pub fn #gsnew_init<B: ParamBinding<#data_type> + 'static>(binding: B) -> Self {
                         Self::#gs(Arc::new(BindingLastGetSet::new_init(binding)))
                     }
                 });
