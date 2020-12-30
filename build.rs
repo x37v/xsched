@@ -28,6 +28,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut access_variants = Vec::new();
         let mut access_data_type_name = Vec::new();
         let mut access_access_name = Vec::new();
+        let mut access_news = Vec::new();
+        let mut access_froms = Vec::new();
 
         let mut pget = Vec::new();
         let mut pset = Vec::new();
@@ -41,7 +43,62 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let g = format_ident!("{}Get", v.0);
             let s = format_ident!("{}Set", v.0);
             let gs = format_ident!("{}GetSet", v.0);
+
+            let data_type = format_ident!("{}", v.2);
             let tname = v.2;
+
+            {
+                let gnew = format_ident!("new_{}_get", v.1);
+                let gnew_doc = format!("Construct a new Get {} with the given binding.", tname);
+                let gnew_init = format_ident!("new_{}_get_init", v.1);
+                let gnew_init_doc = format!("Construct a new Get {} with the given binding, initializing the last value.", tname);
+                let snew = format_ident!("new_{}_set", v.1);
+                let snew_doc = format!("Construct a new Set {} with the given binding.", tname);
+                let gsnew = format_ident!("new_{}_get_set", v.1);
+                let gsnew_doc = format!("Construct a new GetSet {} with the given binding.", tname);
+                let gsnew_init = format_ident!("new_{}_get_set_init", v.1);
+                let gsnew_init_doc = format!("Construct a new GetSet {} with the given binding, initializing the last value.", tname);
+
+                access_news.push(quote! {
+                    #[doc = #gnew_doc]
+                    pub fn #gnew(binding: Arc<dyn ParamBindingGet<#data_type>>) -> Self {
+                        Self::#g(Arc::new(BindingLastGet::new(binding)))
+                    }
+                    #[doc = #gnew_init_doc]
+                    pub fn #gnew_init(binding: Arc<dyn ParamBindingGet<#data_type>>) -> Self {
+                        Self::#g(Arc::new(BindingLastGet::new_init(binding)))
+                    }
+                    #[doc = #snew_doc]
+                    pub fn #snew(binding: Arc<dyn ParamBindingSet<#data_type>>) -> Self {
+                        Self::#s(Arc::new(BindingLastSet::new(binding)))
+                    }
+                    #[doc = #gsnew_doc]
+                    pub fn #gsnew(binding: Arc<dyn ParamBinding<#data_type>>) -> Self {
+                        Self::#gs(Arc::new(BindingLastGetSet::new(binding)))
+                    }
+                    #[doc = #gsnew_init_doc]
+                    pub fn #gsnew_init(binding: Arc<dyn ParamBinding<#data_type>>) -> Self {
+                        Self::#gs(Arc::new(BindingLastGetSet::new_init(binding)))
+                    }
+                });
+                access_froms.push(quote! {
+                    impl From<Arc<dyn ParamBindingGet<#data_type>>> for Access {
+                        fn from(binding: Arc<dyn ParamBindingGet<#data_type>>) -> Self {
+                            Self::#gnew_init(binding)
+                        }
+                    }
+                    impl From<Arc<dyn ParamBindingSet<#data_type>>> for Access {
+                        fn from(binding: Arc<dyn ParamBindingSet<#data_type>>) -> Self {
+                            Self::#snew(binding)
+                        }
+                    }
+                    impl From<Arc<dyn ParamBinding<#data_type>>> for Access {
+                        fn from(binding: Arc<dyn ParamBinding<#data_type>>) -> Self {
+                            Self::#gsnew_init(binding)
+                        }
+                    }
+                });
+            }
 
             //build the variants
             access_variants.push(quote! {
@@ -49,6 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 #s(Arc<BindingLastSet<#t>>),
                 #gs(Arc<BindingLastGetSet<#t>>)
             });
+
             //get the data type name
             access_data_type_name.push(quote! {
                 Self::#g(..) | Self::#s(..) | Self::#gs(..) => &#tname
@@ -91,7 +149,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             #(#access_data_type_name),*
                         }
                     }
+                    #(#access_news)*
                 }
+
+                #(#access_froms)*
             }
             .to_string()
             .as_bytes(),

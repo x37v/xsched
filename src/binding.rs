@@ -4,7 +4,7 @@ use sched::{
     binding::{
         bpm::ClockData,
         last::{BindingLastGet, BindingLastGetSet, BindingLastSet},
-        ParamBindingGet, ParamBindingSet,
+        ParamBinding, ParamBindingGet, ParamBindingSet,
     },
     tick::{TickResched, TickSched},
     Float,
@@ -25,9 +25,13 @@ pub struct Instance {
 
 impl Instance {
     /// Create a new binding instance.
-    pub fn new<P: Into<ParamHashMap>>(type_name: &'static str, binding: Access, params: P) -> Self {
+    pub fn new<P, A>(type_name: &'static str, binding: A, params: P) -> Self
+    where
+        P: Into<ParamHashMap>,
+        A: Into<Access>,
+    {
         Self {
-            binding,
+            binding: binding.into(),
             params: params.into(),
             uuid: uuid::Uuid::new_v4(),
             type_name,
@@ -73,7 +77,7 @@ include!(concat!(env!("OUT_DIR"), "/binding.rs"));
 mod tests {
     use super::*;
     use crate::param::*;
-    use sched::binding::ParamBindingGet;
+    use sched::binding::{ParamBinding, ParamBindingGet};
     use std::collections::HashMap;
     use std::sync::atomic::AtomicUsize;
 
@@ -81,9 +85,7 @@ mod tests {
     fn can_create() {
         let g = Arc::new(Instance::new(
             &"value",
-            Access::USizeGet(Arc::new(
-                Arc::new(AtomicUsize::new(0)) as Arc<dyn ParamBindingGet<usize>>
-            )),
+            Arc::new(AtomicUsize::new(0)) as Arc<dyn ParamBindingGet<usize>>,
             HashMap::new(),
         ));
         assert_eq!("get", g.access_name());
@@ -93,10 +95,7 @@ mod tests {
         let a = Arc::new(AtomicUsize::new(0));
         let s = Arc::new(Instance::new(
             &"value",
-            Access::USizeGetSet {
-                get: Arc::new(a.clone() as Arc<dyn ParamBindingGet<usize>>),
-                set: Arc::new(a.clone() as Arc<dyn ParamBindingSet<usize>>),
-            },
+            a.clone() as Arc<dyn ParamBinding<usize>>,
             HashMap::new(),
         ));
         assert_eq!("getset", s.access_name());
@@ -125,11 +124,7 @@ mod tests {
         map.insert("left", ParamAccess::new_get(ParamGet::USize(lswap)));
         map.insert("right", ParamAccess::new_get(ParamGet::USize(rswap)));
 
-        let max = Instance::new(
-            &"value",
-            Access::USizeGet(Arc::new(max as Arc<dyn ParamBindingGet<usize>>)),
-            map,
-        );
+        let max = Instance::new(&"value", max as Arc<dyn ParamBindingGet<usize>>, map);
         assert_eq!(None, s.params().uuid(&"left"));
         assert_eq!(None, s.params().uuid(&"right"));
         assert_eq!(None, s.params().uuid(&"bill"));
@@ -163,10 +158,7 @@ mod tests {
         let left = Arc::new(AtomicUsize::new(1));
         let left = Arc::new(Instance::new(
             &"value",
-            Access::USizeGetSet {
-                get: Arc::new(left.clone() as Arc<dyn ParamBindingGet<usize>>),
-                set: Arc::new(left.clone() as Arc<dyn ParamBindingSet<usize>>),
-            },
+            left.clone() as Arc<dyn ParamBinding<usize>>,
             HashMap::new(),
         ));
         assert_eq!(None, max.params().uuid(&"left"));
@@ -177,10 +169,7 @@ mod tests {
         let right = Arc::new(AtomicUsize::new(2));
         let right = Arc::new(Instance::new(
             &"value",
-            Access::USizeGetSet {
-                get: Arc::new(right.clone() as Arc<dyn ParamBindingGet<usize>>),
-                set: Arc::new(right.clone() as Arc<dyn ParamBindingSet<usize>>),
-            },
+            right.clone() as Arc<dyn ParamBindingGet<usize>>,
             HashMap::new(),
         ));
         assert_eq!(None, max.params().uuid(&"right"));
