@@ -42,6 +42,11 @@ enum Command {
         param_name: &'static str,
         param_id: String,
     },
+    CreateBindingInstance {
+        id: Option<String>,
+        type_name: String,
+        args: String,
+    },
 }
 
 //wrapper to impl get
@@ -146,12 +151,15 @@ impl OSCQueryHandler {
             "0.0.0.0:3010",
             "0.0.0.0:3001",
         )?;
+        let (command_sender, command_receiver) = std::sync::mpsc::sync_channel(256);
+
         let xsched_handle = server
             .add_node(
                 oscquery::node::Container::new("xsched", Some("xsched scheduler root")).unwrap(),
                 None,
             )
             .unwrap();
+
         let bindings_base = server
             .add_node(
                 oscquery::node::Container::new("bindings", Some("xsched scheduler bindings"))
@@ -165,6 +173,59 @@ impl OSCQueryHandler {
                 Some(bindings_base),
             )
             .unwrap();
+        {
+            let command_sender = command_sender.clone();
+            let _ = server
+                .add_node(
+                    ::oscquery::node::Set::new(
+                        "create",
+                        Some("create a new binding: type_name, arg_string, [uuid]"),
+                        [0, 1, 2]
+                            .iter()
+                            .map(|_| {
+                                ::oscquery::param::ParamSet::String(
+                                    ValueBuilder::new(Arc::new(()) as _).build(),
+                                )
+                            })
+                            .collect::<Vec<::oscquery::param::ParamSet>>(),
+                        Some(Box::new(OscUpdateFunc::new(
+                            move |args: &Vec<oscquery::osc::OscType>,
+                                  _addr: Option<SocketAddr>,
+                                  _time: Option<(u32, u32)>,
+                                  handle: &NodeHandle|
+                                  -> Option<OscWriteCallback> {
+                                let mut args = args.iter();
+                                if let Some(::oscquery::osc::OscType::String(type_name)) =
+                                    args.next()
+                                {
+                                    if let Some(::oscquery::osc::OscType::String(args_string)) =
+                                        args.next()
+                                    {
+                                        let id = match args.next() {
+                                            Some(::oscquery::osc::OscType::String(uuid)) => {
+                                                Some(uuid.into())
+                                            }
+                                            _ => None,
+                                        };
+                                        //TODO error reporting
+                                        let _ =
+                                            command_sender.send(Command::CreateBindingInstance {
+                                                id,
+                                                type_name: type_name.into(),
+                                                args: args_string.into(),
+                                            });
+                                    }
+                                }
+                                None
+                            },
+                        ))),
+                    )
+                    .unwrap(),
+                    Some(bindings_base),
+                )
+                .unwrap();
+        }
+
         //TODO aliases
         let graph_handle = server
             .add_node(
@@ -172,7 +233,6 @@ impl OSCQueryHandler {
                 Some(xsched_handle),
             )
             .unwrap();
-        let (command_sender, command_receiver) = std::sync::mpsc::sync_channel(256);
         let s = Self {
             server,
             xsched_handle,
@@ -309,8 +369,19 @@ impl OSCQueryHandler {
         }
     }
 
-    fn create_binding_instance(&self, uuid: uuid::Uuid, type_name: &str, args: String) {
-        //XXX
+    fn create_binding_instance(&self, uuid: Option<String>, type_name: String, args: String) {
+        let uuid = uuid.map_or_else(
+            || Ok(::uuid::Uuid::new_v4()),
+            |uuid| ::uuid::Uuid::from_str(&uuid),
+        );
+        if let Ok(uuid) = uuid {
+            match crate::binding::factory::create_binding_instance(uuid, &type_name, &args) {
+                Ok(inst) => {
+                    self.add_binding(Arc::new(inst));
+                }
+                Err(e) => println!("error creating instance {}", e),
+            }
+        }
     }
 
     fn handle_command(&self, cmd: Command) {
@@ -321,6 +392,11 @@ impl OSCQueryHandler {
                 param_name,
                 param_id,
             } => self.bind_param(owner, handle, param_name, param_id),
+            Command::CreateBindingInstance {
+                id,
+                type_name,
+                args,
+            } => self.create_binding_instance(id, type_name, args),
         }
     }
 

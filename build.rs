@@ -821,7 +821,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if let Ok(v) = v {
                             Ok(
                                 (
-                                    (Arc::new(Atomic::new(v)) as Arc<dyn ParamBindingGet<#data_type>>).into(),
+                                    (Arc::new(Atomic::new(v)) as Arc<dyn ParamBinding<#data_type>>).into(),
                                     Default::default()
                                 )
                             )
