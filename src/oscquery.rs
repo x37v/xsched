@@ -309,6 +309,10 @@ impl OSCQueryHandler {
         }
     }
 
+    fn create_binding_instance(&self, uuid: uuid::Uuid, type_name: &str, args: String) {
+        //XXX
+    }
+
     fn handle_command(&self, cmd: Command) {
         match cmd {
             Command::BindParam {

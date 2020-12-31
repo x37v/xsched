@@ -69,6 +69,9 @@ fn main() -> Result<(), std::io::Error> {
         HashMap::new(),
     )));
 
+    let help = xsched::binding::factory::help().to_string();
+    println!("instance help {}", help);
+
     while run.load(Ordering::Acquire) {
         server.process();
         std::thread::sleep(std::time::Duration::from_millis(5));

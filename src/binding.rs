@@ -12,6 +12,7 @@ use sched::{
 
 use crate::param::{ParamHashMap, ParamMapGet};
 use std::sync::Arc;
+pub mod factory;
 
 /// Bindings with their access.
 
@@ -30,10 +31,19 @@ impl Instance {
         P: Into<ParamHashMap>,
         A: Into<Access>,
     {
+        Self::new_with_id(type_name, binding, params, uuid::Uuid::new_v4())
+    }
+
+    /// Create a new binding instance, with the given id.
+    pub fn new_with_id<P, A>(type_name: &'static str, binding: A, params: P, id: uuid::Uuid) -> Self
+    where
+        P: Into<ParamHashMap>,
+        A: Into<Access>,
+    {
         Self {
             binding: binding.into(),
             params: params.into(),
-            uuid: uuid::Uuid::new_v4(),
+            uuid: id,
             type_name,
         }
     }

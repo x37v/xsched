@@ -8,6 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = env::var_os("OUT_DIR").unwrap();
 
     let mut bindings_file = std::fs::File::create(&Path::new(&out_dir).join("binding.rs"))?;
+    let mut instance_factory_file = std::fs::File::create(&Path::new(&out_dir).join("instance_factory.rs"))?;
     let mut params_file = std::fs::File::create(&Path::new(&out_dir).join("param.rs"))?;
     let mut oscquery_file = std::fs::File::create(&Path::new(&out_dir).join("oscquery.rs"))?;
 
@@ -779,6 +780,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .as_bytes(),
         )?;
     }
+    
+    //instance factory
+    {
+
+        instance_factory_file.write_all(
+            quote! {
+                lazy_static::lazy_static! {
+                    static ref INSTANCE_FACTORY_HASH: HashMap<&'static str, InstFactItem> = {
+                        let mut m = HashMap::new();
+                        let f: Box<InstDataFn> = Box::new(|arg| {
+                            let v: Result<u8, _> = serde_json::from_str(arg);
+                            if let Ok(v) = v {
+                                Ok(
+                                    (
+                                        (Arc::new(v) as Arc<dyn ParamBindingGet<u8>>).into(),
+                                        Default::default()
+                                    )
+                                )
+                            } else {
+                                Err(CreateError::InvalidArgs)
+                            }
+                        });
+                        m.insert("const::<u8>", 
+                            InstFactItem::new(f, "Constant u8 value", Some(serde_json::to_string(&42u8).unwrap())
+                        ));
+                        m
+                    };
+                }
+            }
+            .to_string()
+            .as_bytes()
+        );
+    }
+
     println!("cargo:rerun-if-changed=build.rs");
     Ok(())
 }
