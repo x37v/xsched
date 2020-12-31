@@ -46,14 +46,16 @@ impl GraphItem {
     /// * `type_name` - the name of the graph `exec` type, used to describe this leaf.
     /// * `exec` - the executor for this leaf.
     /// * `params` - a map of the parameters for this leaf.
+    /// * `id` - a optional uuid to assign to this leaf, a value will be generated if `None`.
     pub fn new_leaf<P: Into<ParamHashMap>, N: GraphLeafExec + 'static>(
         type_name: &'static str,
         exec: N,
         params: P,
+        id: Option<uuid::Uuid>,
     ) -> Self {
         Self::Leaf {
             type_name,
-            uuid: uuid::Uuid::new_v4(),
+            uuid: id.unwrap_or_else(|| uuid::Uuid::new_v4()),
             inner: GraphNodeWrapper::new(exec, sched::graph::children::empty::Children).into(),
             params: params.into(),
         }
@@ -66,6 +68,7 @@ impl GraphItem {
     /// * `type_name` - the name of the graph `exec` type, used to describe this node.
     /// * `exec` - the executor for this node.
     /// * `params` - a map of the parameters for this node.
+    /// * `id` - a optional uuid to assign to this node, a value will be generated if `None`.
     ///
     /// # Remarks
     ///
@@ -74,6 +77,7 @@ impl GraphItem {
         type_name: &'static str,
         exec: N,
         params: P,
+        id: Option<uuid::Uuid>,
     ) -> Self {
         let children: Arc<Mutex<SwapChildren>> = Default::default();
         //add child_exec_index to the parameters
@@ -87,20 +91,21 @@ impl GraphItem {
         );
         Self::Node {
             type_name,
-            uuid: uuid::Uuid::new_v4(),
+            uuid: id.unwrap_or_else(|| uuid::Uuid::new_v4()),
             inner: GraphNodeWrapper::new(exec, SwapChildrenContainer::new(children.clone())).into(),
             params,
             children,
         }
     }
 
-    /// Create a new root.
+    /// Create a new root with the given id.
     ///
     /// # Arguments
     ///
     /// * `type_name` - the name of the graph `exec` type, used to describe this node.
     /// * `exec` - the executor for this node.
     /// * `params` - a map of the parameters for this node.
+    /// * `id` - a optional uuid to assign to this root, a value will be generated if `None`.
     ///
     /// # Remarks
     ///
@@ -109,6 +114,7 @@ impl GraphItem {
         type_name: &'static str,
         exec: N,
         params: P,
+        id: Option<uuid::Uuid>,
     ) -> Self {
         let children: Arc<Mutex<SwapChildren>> = Default::default();
         //add child_exec_index to the parameters
@@ -122,7 +128,7 @@ impl GraphItem {
         );
         Self::Root {
             type_name,
-            uuid: uuid::Uuid::new_v4(),
+            uuid: id.unwrap_or_else(|| uuid::Uuid::new_v4()),
             inner: GraphNodeWrapper::new(exec, SwapChildrenContainer::new(children.clone())).into(),
             params,
             children,
