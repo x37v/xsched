@@ -783,35 +783,72 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     //instance factory
     {
+        let mut entries = Vec::new();
+
+        for v in variants.iter() {
+            let data_type = format_ident!("{}", v.2);
+            let tname = v.2;
+
+            let cname = format!("const::<{}>", tname);
+            let cdesc = format!("Constant {} value", tname);
+
+            let mname = format!("val::<{}>", tname);
+            let mdesc = format!("Mutable {} value", tname);
+
+            //consts and values
+            entries.push(
+                quote! {
+                    let ex: #data_type = Default::default();
+
+                    let f: Box<InstDataFn> = Box::new(|arg| {
+                        let v: Result<#data_type, _> = serde_json::from_str(arg);
+                        if let Ok(v) = v {
+                            Ok(
+                                (
+                                    (Arc::new(v) as Arc<dyn ParamBindingGet<#data_type>>).into(),
+                                    Default::default()
+                                )
+                            )
+                        } else {
+                            Err(CreateError::InvalidArgs)
+                        }
+                    });
+                    m.insert(#cname, 
+                        InstFactItem::new(f, #cdesc, Some(serde_json::to_string(&ex).unwrap())
+                    ));
+                    let f: Box<InstDataFn> = Box::new(|arg| {
+                        let v: Result<#data_type, _> = serde_json::from_str(arg);
+                        if let Ok(v) = v {
+                            Ok(
+                                (
+                                    (Arc::new(Atomic::new(v)) as Arc<dyn ParamBindingGet<#data_type>>).into(),
+                                    Default::default()
+                                )
+                            )
+                        } else {
+                            Err(CreateError::InvalidArgs)
+                        }
+                    });
+                    m.insert(#mname, 
+                        InstFactItem::new(f, #mdesc, Some(serde_json::to_string(&ex).unwrap())
+                    ));
+                }
+            );
+        }
 
         instance_factory_file.write_all(
             quote! {
                 lazy_static::lazy_static! {
                     static ref INSTANCE_FACTORY_HASH: HashMap<&'static str, InstFactItem> = {
                         let mut m = HashMap::new();
-                        let f: Box<InstDataFn> = Box::new(|arg| {
-                            let v: Result<u8, _> = serde_json::from_str(arg);
-                            if let Ok(v) = v {
-                                Ok(
-                                    (
-                                        (Arc::new(v) as Arc<dyn ParamBindingGet<u8>>).into(),
-                                        Default::default()
-                                    )
-                                )
-                            } else {
-                                Err(CreateError::InvalidArgs)
-                            }
-                        });
-                        m.insert("const::<u8>", 
-                            InstFactItem::new(f, "Constant u8 value", Some(serde_json::to_string(&42u8).unwrap())
-                        ));
+                        #(#entries)*
                         m
                     };
                 }
             }
             .to_string()
             .as_bytes()
-        );
+        )?;
     }
 
     println!("cargo:rerun-if-changed=build.rs");

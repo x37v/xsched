@@ -2,7 +2,12 @@ use crate::{
     binding::{Access, Instance},
     param::ParamHashMap,
 };
-use sched::binding::ParamBindingGet;
+use sched::{
+    atomic::Atomic,
+    binding::{bpm::ClockData, ParamBinding, ParamBindingGet, ParamBindingSet},
+    tick::{TickResched, TickSched},
+    Float,
+};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
