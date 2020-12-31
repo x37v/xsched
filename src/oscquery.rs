@@ -375,7 +375,7 @@ impl OSCQueryHandler {
             |uuid| ::uuid::Uuid::from_str(&uuid),
         );
         if let Ok(uuid) = uuid {
-            match crate::binding::factory::create_binding_instance(uuid, &type_name, &args) {
+            match crate::binding::factory::create_instance(uuid, &type_name, &args) {
                 Ok(inst) => {
                     self.add_binding(Arc::new(inst));
                 }

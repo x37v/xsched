@@ -1,5 +1,6 @@
 use crate::{
     binding::{Access, Instance},
+    error::CreateError,
     param::ParamHashMap,
 };
 use sched::{
@@ -29,20 +30,6 @@ pub struct InstFactItem {
     example_args: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum CreateError {
-    TypeNotFound,
-    InvalidArgs,
-}
-
-impl std::fmt::Display for CreateError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::error::Error for CreateError {}
-
 impl InstFactItem {
     pub fn new<D>(func: Box<InstDataFn>, description: D, example_args: Option<String>) -> Self
     where
@@ -70,7 +57,7 @@ impl InstFactItem {
     }
 }
 
-pub fn create_binding_instance(
+pub fn create_instance(
     uuid: uuid::Uuid,
     type_name: &str,
     args: &str,
