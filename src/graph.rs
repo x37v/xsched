@@ -5,19 +5,28 @@ use crate::{
     param::{ParamHashMap, ParamMapGet},
 };
 use sched::{
-    graph::{node_wrapper::GraphNodeWrapper, GraphLeafExec, GraphNodeContainer, GraphNodeExec},
+    event::{
+        gate::{ArcMutexEvent, GateEvent},
+        EventContainer, EventEval,
+    },
+    graph::{
+        node_wrapper::GraphNodeWrapper, root_wrapper::GraphRootWrapper, GraphLeafExec,
+        GraphNodeContainer, GraphNodeExec, GraphRootExec,
+    },
     mutex::Mutex,
 };
 
 use std::sync::Arc;
 
+pub mod factory;
+
 /// An enum for holding and describing graph nodes.
 pub enum GraphItem {
-    /// Root is a root of a graph, it cannot be added as a child.
+    /// Root is the start of a graph, it cannot be added as a child.
     Root {
         type_name: &'static str,
         uuid: uuid::Uuid,
-        inner: GraphNodeContainer,
+        inner: ArcMutexEvent,
         params: ParamHashMap,
         children: Arc<Mutex<SwapChildren>>,
     },
@@ -102,15 +111,15 @@ impl GraphItem {
     ///
     /// # Arguments
     ///
-    /// * `type_name` - the name of the graph `exec` type, used to describe this node.
-    /// * `exec` - the executor for this node.
-    /// * `params` - a map of the parameters for this node.
+    /// * `type_name` - the name of the graph `exec` type, used to describe this root.
+    /// * `exec` - the executor for this root.
+    /// * `params` - a map of the parameters for this root.
     /// * `id` - a optional uuid to assign to this root, a value will be generated if `None`.
     ///
     /// # Remarks
     ///
     /// * a `child_exec_index` Set(USize) item will be added to `params`, it must not collide.
-    pub fn new_root<P: Into<ParamHashMap>, N: GraphNodeExec + 'static>(
+    pub fn new_root<P: Into<ParamHashMap>, N: GraphRootExec + 'static>(
         type_name: &'static str,
         exec: N,
         params: P,
@@ -129,17 +138,20 @@ impl GraphItem {
         Self::Root {
             type_name,
             uuid: id.unwrap_or_else(|| uuid::Uuid::new_v4()),
-            inner: GraphNodeWrapper::new(exec, SwapChildrenContainer::new(children.clone())).into(),
+            inner: Arc::new(Mutex::new(GraphRootWrapper::new(
+                exec,
+                SwapChildrenContainer::new(children.clone()),
+            ))),
             params,
             children,
         }
     }
 
-    pub fn get_node(&self) -> GraphNodeContainer {
+    pub fn get_node(&self) -> Option<GraphNodeContainer> {
         match self {
-            Self::Root { inner, .. } => inner.clone(),
-            Self::Node { inner, .. } => inner.clone(),
-            Self::Leaf { inner, .. } => inner.clone(),
+            Self::Root { .. } => None,
+            Self::Node { inner, .. } => Some(inner.clone()),
+            Self::Leaf { inner, .. } => Some(inner.clone()),
         }
     }
 
