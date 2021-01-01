@@ -5,6 +5,8 @@ use crate::{
     param::{ParamHashMap, ParamMapGet},
 };
 use sched::{
+    atomic::{Atomic, Ordering},
+    binding::ParamBindingGet,
     event::{
         gate::{ArcMutexEvent, GateEvent},
         EventContainer, EventEval,
@@ -29,6 +31,7 @@ pub enum GraphItem {
         inner: ArcMutexEvent,
         params: ParamHashMap,
         children: Arc<Mutex<SwapChildren>>,
+        active_gate: Option<Arc<Atomic<bool>>>,
     },
     ///Node can have children.
     Node {
@@ -144,6 +147,57 @@ impl GraphItem {
             ))),
             params,
             children,
+            active_gate: None,
+        }
+    }
+
+    /// Get an `EventContainer` for this node, if it is a Root node.
+    ///
+    /// # Remarks
+    /// * If this root is already active, this will halt its processing.
+    pub fn root_event(&mut self) -> Option<EventContainer> {
+        match self {
+            Self::Root {
+                ref mut active_gate,
+                inner,
+                ..
+            } => {
+                let g: Arc<Atomic<bool>> = Arc::new(Atomic::new(true));
+                let v = EventContainer::new(GateEvent::new(
+                    g.clone() as Arc<dyn ParamBindingGet<bool>>,
+                    inner.clone(),
+                ));
+                if let Some(g) = active_gate.replace(g) {
+                    g.store(false, Ordering::Release);
+                }
+                Some(v)
+            }
+            Self::Node { .. } | Self::Leaf { .. } => None,
+        }
+    }
+
+    /// Is this a root, and is it active?
+    pub fn root_active(&self) -> Option<bool> {
+        match self {
+            Self::Root {
+                ref active_gate, ..
+            } => Some(active_gate.is_some()),
+            Self::Node { .. } | Self::Leaf { .. } => None,
+        }
+    }
+
+    /// Deactivate this node, if it is a root.
+    pub fn root_deactivate(&mut self) {
+        match self {
+            Self::Root {
+                ref mut active_gate,
+                ..
+            } => {
+                if let Some(g) = active_gate.take() {
+                    g.store(false, Ordering::Release);
+                }
+            }
+            Self::Node { .. } | Self::Leaf { .. } => (),
         }
     }
 
@@ -185,5 +239,11 @@ impl ParamMapGet for GraphItem {
             Self::Node { params, .. } => params,
             Self::Leaf { params, .. } => params,
         }
+    }
+}
+
+impl Drop for GraphItem {
+    fn drop(&mut self) {
+        self.root_deactivate()
     }
 }
