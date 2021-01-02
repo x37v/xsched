@@ -31,9 +31,9 @@ fn main() -> Result<(), std::io::Error> {
     let graph: HashMap<String, GraphItem> = Default::default();
 
     let sched = Sched::new();
-    let queue = sched.sched_queue();
+    let queue_sources = sched.queue_sources();
     let _jack = Jack::new(sched);
-    let mut server = OSCQueryHandler::new(queue, bindings, graph)?;
+    let mut server = OSCQueryHandler::new(queue_sources, bindings, graph)?;
 
     /*
     server.add_binding(Arc::new(Instance::new(

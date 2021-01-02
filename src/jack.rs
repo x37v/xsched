@@ -56,7 +56,8 @@ impl Jack {
             .register_port("midi", jack::MidiOut::default())
             .expect("failed to create midi out port");
         let notify = Notifications::new();
-        let midi_queue = sched.midi_queue();
+        let queue_sources = sched.queue_sources();
+        let midi_queue = queue_sources.midi_queue();
         let handler = SchedProcessHandler {
             sched,
             midi_out,

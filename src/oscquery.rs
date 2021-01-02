@@ -2,7 +2,7 @@ use crate::{
     binding::{Access, Instance},
     graph::GraphItem,
     param::ParamMapGet,
-    sched::EventQueue,
+    sched::{EventQueue, QueueSource},
 };
 use oscquery::{
     func_wrap::{GetFunc, GetSetFuncs, OscUpdateFunc, SetFunc},
@@ -80,6 +80,7 @@ pub struct OSCQueryHandler {
     graph_handle: NodeHandle,
     command_receiver: Receiver<Command>,
     sched_queue: EventQueue,
+    queue_sources: Arc<dyn QueueSource>,
 }
 
 impl ParamOSCQueryGetSet {
@@ -151,7 +152,7 @@ impl ParamOSCQueryOscUpdate {
 
 impl OSCQueryHandler {
     pub fn new(
-        sched_queue: EventQueue,
+        queue_sources: Arc<dyn QueueSource>,
         _bindings: HashMap<String, Arc<Instance>>,
         _graph: HashMap<String, GraphItem>,
     ) -> Result<Self, std::io::Error> {
@@ -313,7 +314,8 @@ impl OSCQueryHandler {
             graph: Default::default(),
             command_sender,
             command_receiver,
-            sched_queue,
+            sched_queue: queue_sources.sched_queue(),
+            queue_sources,
         };
 
         //TODO add bindings and graph

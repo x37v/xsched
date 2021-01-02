@@ -26,6 +26,10 @@ pub struct Sched {
     fill_dispose_continue: Arc<AtomicBool>,
     fill_dispose_handle: Option<std::thread::JoinHandle<()>>,
     executor: ScheduleExecutor<SchedDequeue, SchedEnqueue, EventSink>,
+    queue_sources: Arc<SchedQueueSources>,
+}
+
+struct SchedQueueSources {
     midi_queue: MidiValueQueue,
     midi_event_source: MidiEventSource,
     sched_queue: EventQueue,
@@ -34,6 +38,12 @@ pub struct Sched {
 pub trait IntoPtrs {
     fn into_arc(self) -> Arc<Self>;
     fn into_alock(self) -> ArcMutex<Self>;
+}
+
+pub trait QueueSource {
+    fn midi_queue(&self) -> MidiValueQueue;
+    fn midi_event_source(&self) -> MidiEventSource;
+    fn sched_queue(&self) -> EventQueue;
 }
 
 impl<T> IntoPtrs for T
@@ -88,13 +98,17 @@ impl Sched {
             })
         };
 
+        let queue_sources = Arc::new(SchedQueueSources::new(
+            midi_queue,
+            midi_event_source,
+            sched_queue,
+        ));
+
         Self {
             fill_dispose_handle: Some(fill_dispose_handle),
             fill_dispose_continue,
             executor: ex,
-            midi_queue,
-            midi_event_source,
-            sched_queue,
+            queue_sources,
         }
     }
 
@@ -106,15 +120,35 @@ impl Sched {
         self.executor.tick_next()
     }
 
-    pub fn midi_queue(&self) -> MidiValueQueue {
+    pub fn queue_sources(&self) -> Arc<dyn QueueSource> {
+        self.queue_sources.clone()
+    }
+}
+
+impl SchedQueueSources {
+    pub fn new(
+        midi_queue: MidiValueQueue,
+        midi_event_source: MidiEventSource,
+        sched_queue: EventQueue,
+    ) -> Self {
+        Self {
+            midi_queue,
+            midi_event_source,
+            sched_queue,
+        }
+    }
+}
+
+impl QueueSource for SchedQueueSources {
+    fn midi_queue(&self) -> MidiValueQueue {
         self.midi_queue.clone()
     }
 
-    pub fn midi_event_source(&self) -> MidiEventSource {
+    fn midi_event_source(&self) -> MidiEventSource {
         self.midi_event_source.clone()
     }
 
-    pub fn sched_queue(&self) -> EventQueue {
+    fn sched_queue(&self) -> EventQueue {
         self.sched_queue.clone()
     }
 }
