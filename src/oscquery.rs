@@ -364,7 +364,7 @@ impl OSCQueryHandler {
                 .unwrap();
             //value
             self.add_binding_value(&binding, handle);
-            //type nodes
+            //type node
             {
                 let _ = self
                     .server
