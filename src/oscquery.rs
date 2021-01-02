@@ -2,6 +2,7 @@ use crate::{
     binding::{Access, Instance},
     graph::GraphItem,
     param::ParamMapGet,
+    sched::EventQueue,
 };
 use oscquery::{
     func_wrap::{GetFunc, GetSetFuncs, OscUpdateFunc, SetFunc},
@@ -17,6 +18,7 @@ use sched::{
         last::BindingLast,
         ParamBindingGet, ParamBindingSet,
     },
+    pqueue::TickPriorityEnqueue,
     tick::TickResched,
 };
 
@@ -77,6 +79,7 @@ pub struct OSCQueryHandler {
     bindings_handle: NodeHandle,
     graph_handle: NodeHandle,
     command_receiver: Receiver<Command>,
+    sched_queue: EventQueue,
 }
 
 impl ParamOSCQueryGetSet {
@@ -148,6 +151,7 @@ impl ParamOSCQueryOscUpdate {
 
 impl OSCQueryHandler {
     pub fn new(
+        sched_queue: EventQueue,
         _bindings: HashMap<String, Arc<Instance>>,
         _graph: HashMap<String, GraphItem>,
     ) -> Result<Self, std::io::Error> {
@@ -309,6 +313,7 @@ impl OSCQueryHandler {
             graph: Default::default(),
             command_sender,
             command_receiver,
+            sched_queue,
         };
 
         //TODO add bindings and graph
@@ -342,13 +347,22 @@ impl OSCQueryHandler {
                     )
                     .unwrap();
             }
-            //TODO activate
+            //TODO activation control
             self.add_params(
                 ParamOwner::GraphItem(item.uuid().clone()),
                 item.clone() as _,
                 handle.clone(),
             );
-            guard.insert(item.uuid(), item);
+            guard.insert(item.uuid(), item.clone());
+
+            //TODO use some config to decide if we should start the event immediately
+            if let Some(e) = item.root_event() {
+                self.sched_queue
+                    .lock()
+                    .enqueue(0, e)
+                    .ok()
+                    .expect("to be able to schedule root event");
+            }
         }
     }
 

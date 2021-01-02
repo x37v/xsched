@@ -31,8 +31,11 @@ fn main() -> Result<(), std::io::Error> {
     let graph: HashMap<String, GraphItem> = Default::default();
 
     let sched = Sched::new();
+    let queue = sched.sched_queue();
     let _jack = Jack::new(sched);
-    let mut server = OSCQueryHandler::new(bindings, graph)?;
+    let mut server = OSCQueryHandler::new(queue, bindings, graph)?;
+
+    /*
     server.add_binding(Arc::new(Instance::new(
         &"value",
         std::sync::atomic::AtomicUsize::new(2084),
@@ -68,6 +71,7 @@ fn main() -> Result<(), std::io::Error> {
         sched::tick::TickResched::Relative(20),
         HashMap::new(),
     )));
+    */
 
     let help = xsched::binding::factory::help().to_string();
     println!("instance help {}", help);
