@@ -366,29 +366,19 @@ impl OSCQueryHandler {
             self.add_binding_value(&binding, handle);
             //type nodes
             {
-                let weak = Arc::downgrade(&binding);
-                let type_name = Arc::new(GetFunc::new(move || {
-                    weak.upgrade().map_or("", |b| b.type_name()).to_string()
-                })) as Arc<dyn Get<String>>;
-                let weak = Arc::downgrade(&binding);
-                let access_name = Arc::new(GetFunc::new(move || {
-                    weak.upgrade().map_or("", |b| b.access_name()).to_string()
-                })) as Arc<dyn Get<String>>;
-                let weak = Arc::downgrade(&binding);
-                let data_type_name = Arc::new(GetFunc::new(move || {
-                    weak.upgrade()
-                        .map_or("", |b| b.data_type_name())
-                        .to_string()
-                })) as Arc<dyn Get<String>>;
                 let _ = self
                     .server
                     .add_node(
                         oscquery::node::Get::new(
                             "type",
                             Some("type_name, access_name, data_type_name"),
-                            vec![type_name, access_name, data_type_name]
-                                .into_iter()
-                                .map(|v| ParamGet::String(ValueBuilder::new(v as _).build())),
+                            vec![
+                                binding.type_name(),
+                                binding.access_name(),
+                                binding.data_type_name(),
+                            ]
+                            .into_iter()
+                            .map(|v| ParamGet::String(ValueBuilder::new(Arc::new(v) as _).build())),
                         )
                         .unwrap(),
                         Some(handle),
