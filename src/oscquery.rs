@@ -325,6 +325,24 @@ impl OSCQueryHandler {
                     Some(self.graph_handle),
                 )
                 .unwrap();
+            //type node
+            {
+                let _ = self
+                    .server
+                    .add_node(
+                        oscquery::node::Get::new(
+                            "type",
+                            Some("type_name"),
+                            vec![ParamGet::String(
+                                ValueBuilder::new(Arc::new(item.type_name()) as _).build(),
+                            )],
+                        )
+                        .unwrap(),
+                        Some(handle),
+                    )
+                    .unwrap();
+            }
+            //TODO activate
             self.add_params(
                 ParamOwner::GraphItem(item.uuid().clone()),
                 item.clone() as _,
