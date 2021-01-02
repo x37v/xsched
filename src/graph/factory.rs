@@ -2,6 +2,7 @@ use crate::{
     error::CreateError,
     graph::GraphItem,
     param::{ParamAccess, ParamGet},
+    sched::QueueSource,
 };
 use sched::{
     binding::{
@@ -19,6 +20,7 @@ pub fn create_instance(
     uuid: uuid::Uuid,
     type_name: &str,
     _args: &str,
+    queue_sources: &Arc<dyn QueueSource>,
 ) -> Result<GraphItem, CreateError> {
     if type_name == "root::clock" {
         let clock = ClockData::default();

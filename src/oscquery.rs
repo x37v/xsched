@@ -517,7 +517,12 @@ impl OSCQueryHandler {
             |uuid| ::uuid::Uuid::from_str(&uuid),
         );
         if let Ok(uuid) = uuid {
-            match crate::graph::factory::create_instance(uuid, &type_name, &args) {
+            match crate::graph::factory::create_instance(
+                uuid,
+                &type_name,
+                &args,
+                &self.queue_sources,
+            ) {
                 Ok(item) => {
                     self.add_graph_item(item);
                 }
