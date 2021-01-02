@@ -229,6 +229,15 @@ impl GraphItem {
             Self::Leaf { type_name, .. } => type_name,
         }
     }
+
+    ///Get the uuid for this item.
+    pub fn uuid(&self) -> uuid::Uuid {
+        match self {
+            Self::Root { uuid, .. } => uuid.clone(),
+            Self::Node { uuid, .. } => uuid.clone(),
+            Self::Leaf { uuid, .. } => uuid.clone(),
+        }
+    }
 }
 
 impl ParamMapGet for GraphItem {

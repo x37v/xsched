@@ -33,6 +33,7 @@ use std::{
 #[derive(Clone, Debug)]
 enum ParamOwner {
     Binding(uuid::Uuid),
+    GraphItem(uuid::Uuid),
 }
 
 enum Command {
@@ -43,6 +44,11 @@ enum Command {
         param_id: String,
     },
     CreateBindingInstance {
+        id: Option<String>,
+        type_name: String,
+        args: String,
+    },
+    CreateGraphNodeInstance {
         id: Option<String>,
         type_name: String,
         args: String,
@@ -64,7 +70,7 @@ struct ParamOSCQueryOscUpdate {
 
 pub struct OSCQueryHandler {
     bindings: std::sync::Mutex<HashMap<uuid::Uuid, Arc<Instance>>>,
-    graph: std::sync::Mutex<HashMap<String, Arc<GraphItem>>>,
+    graph: std::sync::Mutex<HashMap<uuid::Uuid, Arc<GraphItem>>>,
     command_sender: SyncSender<Command>,
     server: OscQueryServer,
     xsched_handle: NodeHandle,
@@ -227,12 +233,73 @@ impl OSCQueryHandler {
         }
 
         //TODO aliases
-        let graph_handle = server
+        let graph_base = server
             .add_node(
                 oscquery::node::Container::new("graph", Some("xsched scheduler graph")).unwrap(),
                 Some(xsched_handle),
             )
             .unwrap();
+        {
+            let command_sender = command_sender.clone();
+            let _ = server
+                .add_node(
+                    ::oscquery::node::Set::new(
+                        "create",
+                        Some("create a new graph node: type_name, arg_string, [uuid]"),
+                        [0, 1, 2]
+                            .iter()
+                            .map(|_| {
+                                ::oscquery::param::ParamSet::String(
+                                    ValueBuilder::new(Arc::new(()) as _).build(),
+                                )
+                            })
+                            .collect::<Vec<::oscquery::param::ParamSet>>(),
+                        Some(Box::new(OscUpdateFunc::new(
+                            move |args: &Vec<oscquery::osc::OscType>,
+                                  _addr: Option<SocketAddr>,
+                                  _time: Option<(u32, u32)>,
+                                  handle: &NodeHandle|
+                                  -> Option<OscWriteCallback> {
+                                let mut args = args.iter();
+                                if let Some(::oscquery::osc::OscType::String(type_name)) =
+                                    args.next()
+                                {
+                                    if let Some(::oscquery::osc::OscType::String(args_string)) =
+                                        args.next()
+                                    {
+                                        let id = match args.next() {
+                                            Some(::oscquery::osc::OscType::String(uuid)) => {
+                                                Some(uuid.into())
+                                            }
+                                            _ => None,
+                                        };
+                                        //TODO error reporting
+                                        let _ =
+                                            command_sender.send(Command::CreateGraphNodeInstance {
+                                                id,
+                                                type_name: type_name.into(),
+                                                args: args_string.into(),
+                                            });
+                                    }
+                                }
+                                None
+                            },
+                        ))),
+                    )
+                    .unwrap(),
+                    Some(graph_base),
+                )
+                .unwrap();
+        }
+
+        let graph_handle = server
+            .add_node(
+                oscquery::node::Container::new("uuids", Some("xsched scheduler graph uuids"))
+                    .unwrap(),
+                Some(graph_base),
+            )
+            .unwrap();
+
         let s = Self {
             server,
             xsched_handle,
@@ -246,6 +313,25 @@ impl OSCQueryHandler {
 
         //TODO add bindings and graph
         Ok(s)
+    }
+
+    pub fn add_graph_item(&self, item: GraphItem) {
+        let item = Arc::new(item);
+        if let Ok(mut guard) = self.graph.lock() {
+            let handle = self
+                .server
+                .add_node(
+                    oscquery::node::Container::new(map_uuid(&item.uuid()), None).unwrap(),
+                    Some(self.graph_handle),
+                )
+                .unwrap();
+            self.add_params(
+                ParamOwner::GraphItem(item.uuid().clone()),
+                item.clone() as _,
+                handle.clone(),
+            );
+            guard.insert(item.uuid(), item);
+        }
     }
 
     pub fn add_binding(&self, binding: Arc<Instance>) {
@@ -346,23 +432,40 @@ impl OSCQueryHandler {
         param_name: &'static str,
         param_id: String,
     ) {
-        if let Ok(guard) = self.bindings.lock() {
+        if let Ok(bindings_guard) = self.bindings.lock() {
             match owner {
                 //bind parameters
                 ParamOwner::Binding(binding_id) => {
-                    if let Some(binding) = guard.get(&binding_id) {
+                    if let Some(binding) = bindings_guard.get(&binding_id) {
                         if param_id.is_empty() {
                             binding.params().unbind(param_name);
                         } else {
                             if let Ok(param_id) = ::uuid::Uuid::from_str(&param_id) {
                                 //TODO cycle detection
                                 //TODO error handling
-                                if let Some(param) = guard.get(&param_id) {
+                                if let Some(param) = bindings_guard.get(&param_id) {
                                     let _r = binding.params().try_bind(param_name, param.clone());
                                 }
                             }
                         }
                         self.server.trigger(handle);
+                    }
+                }
+                ParamOwner::GraphItem(item_id) => {
+                    if let Ok(graph_guard) = self.graph.lock() {
+                        if let Some(item) = graph_guard.get(&item_id) {
+                            if param_id.is_empty() {
+                                item.params().unbind(param_name);
+                            } else {
+                                if let Ok(param_id) = ::uuid::Uuid::from_str(&param_id) {
+                                    //TODO error handling
+                                    if let Some(param) = bindings_guard.get(&param_id) {
+                                        let _r = item.params().try_bind(param_name, param.clone());
+                                    }
+                                }
+                            }
+                            self.server.trigger(handle);
+                        }
                     }
                 }
             }
@@ -384,6 +487,21 @@ impl OSCQueryHandler {
         }
     }
 
+    fn create_graph_node_instance(&self, uuid: Option<String>, type_name: String, args: String) {
+        let uuid = uuid.map_or_else(
+            || Ok(::uuid::Uuid::new_v4()),
+            |uuid| ::uuid::Uuid::from_str(&uuid),
+        );
+        if let Ok(uuid) = uuid {
+            match crate::graph::factory::create_instance(uuid, &type_name, &args) {
+                Ok(item) => {
+                    self.add_graph_item(item);
+                }
+                Err(e) => println!("error creating instance {}", e),
+            }
+        }
+    }
+
     fn handle_command(&self, cmd: Command) {
         match cmd {
             Command::BindParam {
@@ -397,6 +515,11 @@ impl OSCQueryHandler {
                 type_name,
                 args,
             } => self.create_binding_instance(id, type_name, args),
+            Command::CreateGraphNodeInstance {
+                id,
+                type_name,
+                args,
+            } => self.create_graph_node_instance(id, type_name, args),
         }
     }
 
