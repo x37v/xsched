@@ -31,7 +31,7 @@ pub enum GraphItem {
         inner: ArcMutexEvent,
         params: ParamHashMap,
         children: Arc<Mutex<SwapChildren>>,
-        active_gate: Option<Arc<Atomic<bool>>>,
+        active_gate: Mutex<Option<Arc<Atomic<bool>>>>,
     },
     ///Node can have children.
     Node {
@@ -147,7 +147,7 @@ impl GraphItem {
             ))),
             params,
             children,
-            active_gate: None,
+            active_gate: Mutex::new(None),
         }
     }
 
@@ -155,10 +155,10 @@ impl GraphItem {
     ///
     /// # Remarks
     /// * If this root is already active, this will halt its processing.
-    pub fn root_event(&mut self) -> Option<EventContainer> {
+    pub fn root_event(&self) -> Option<EventContainer> {
         match self {
             Self::Root {
-                ref mut active_gate,
+                ref active_gate,
                 inner,
                 ..
             } => {
@@ -167,7 +167,7 @@ impl GraphItem {
                     g.clone() as Arc<dyn ParamBindingGet<bool>>,
                     inner.clone(),
                 ));
-                if let Some(g) = active_gate.replace(g) {
+                if let Some(g) = active_gate.lock().replace(g) {
                     g.store(false, Ordering::Release);
                 }
                 Some(v)
@@ -181,19 +181,18 @@ impl GraphItem {
         match self {
             Self::Root {
                 ref active_gate, ..
-            } => Some(active_gate.is_some()),
+            } => Some(active_gate.lock().is_some()),
             Self::Node { .. } | Self::Leaf { .. } => None,
         }
     }
 
     /// Deactivate this node, if it is a root.
-    pub fn root_deactivate(&mut self) {
+    pub fn root_deactivate(&self) {
         match self {
             Self::Root {
-                ref mut active_gate,
-                ..
+                ref active_gate, ..
             } => {
-                if let Some(g) = active_gate.take() {
+                if let Some(g) = active_gate.lock().take() {
                     g.store(false, Ordering::Release);
                 }
             }
