@@ -115,9 +115,9 @@ impl ParamHashMap {
         }
     }
 
-    ///Insert a parameter into the mapping, it should be unbound
+    ///Insert a parameter into the mapping, it should be unbound.
     pub(crate) fn insert_unbound(&mut self, name: &'static str, param: ParamAccess) {
-        //XXX assert unbound and no collision
+        assert!(!self.inner.contains_key(name));
         self.inner.insert(name, param);
     }
 }

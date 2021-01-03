@@ -65,7 +65,6 @@ impl GraphItem {
         let children: ChildrenWithUUID = Default::default();
         let mut params = params.into();
         //add child_exec_index to the parameters
-        assert!(!params.contains_key(CHILD_EXEC_INDEX));
         params.insert_unbound(
             CHILD_EXEC_INDEX,
             crate::param::ParamAccess::Set {
