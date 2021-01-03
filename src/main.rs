@@ -1,11 +1,5 @@
-use sched::binding::{last::BindingLastGet, ParamBindingGet};
 use xsched::{
-    binding::{Access, Instance},
-    graph::GraphItem,
-    jack::Jack,
-    oscquery::OSCQueryHandler,
-    param::{ParamAccess, ParamGet},
-    sched::Sched,
+    binding::Instance, graph::GraphItem, jack::Jack, oscquery::OSCQueryHandler, sched::Sched,
 };
 
 use std::{

@@ -1,15 +1,15 @@
 //! Graph nodes
 
 use crate::{
-    children::{ALockChildren, SwapChildren, SwapChildrenContainer},
+    graph::children::{SwapChildren, SwapChildrenContainer},
     param::{ParamHashMap, ParamMapGet},
 };
 use sched::{
     atomic::{Atomic, Ordering},
-    binding::ParamBindingGet,
+    binding::{swap::BindingSwapSet, ParamBindingGet},
     event::{
         gate::{ArcMutexEvent, GateEvent},
-        EventContainer, EventEval,
+        EventContainer,
     },
     graph::{
         node_wrapper::GraphNodeWrapper, root_wrapper::GraphRootWrapper, GraphLeafExec,
@@ -20,7 +20,14 @@ use sched::{
 
 use std::sync::Arc;
 
+pub mod children;
 pub mod factory;
+
+#[derive(Default)]
+pub struct ChildrenWithUUID {
+    children: Arc<SwapChildren>,
+    uuids: Vec<uuid::Uuid>,
+}
 
 /// An enum for holding and describing graph nodes.
 pub enum GraphItem {
@@ -30,7 +37,7 @@ pub enum GraphItem {
         uuid: uuid::Uuid,
         inner: ArcMutexEvent,
         params: ParamHashMap,
-        children: Arc<Mutex<SwapChildren>>,
+        children: ChildrenWithUUID,
         active_gate: Mutex<Option<Arc<Atomic<bool>>>>,
     },
     ///Node can have children.
@@ -39,7 +46,7 @@ pub enum GraphItem {
         uuid: uuid::Uuid,
         inner: GraphNodeContainer,
         params: ParamHashMap,
-        children: Arc<Mutex<SwapChildren>>,
+        children: ChildrenWithUUID,
     },
     ///Leaf is a terminal node, cannot have children.
     Leaf {
@@ -91,20 +98,21 @@ impl GraphItem {
         params: P,
         id: Option<uuid::Uuid>,
     ) -> Self {
-        let children: Arc<Mutex<SwapChildren>> = Default::default();
+        let children: ChildrenWithUUID = Default::default();
         //add child_exec_index to the parameters
         let mut params = params.into();
         params.insert_unbound(
             &"child_exec_index",
             crate::param::ParamAccess::Set {
-                set: crate::param::ParamSet::USize(children.lock().index_binding()),
+                set: crate::param::ParamSet::USize(children.index_binding()),
                 binding: Default::default(),
             },
         );
         Self::Node {
             type_name,
             uuid: id.unwrap_or_else(|| uuid::Uuid::new_v4()),
-            inner: GraphNodeWrapper::new(exec, SwapChildrenContainer::new(children.clone())).into(),
+            inner: GraphNodeWrapper::new(exec, SwapChildrenContainer::new(children.children()))
+                .into(),
             params,
             children,
         }
@@ -128,13 +136,13 @@ impl GraphItem {
         params: P,
         id: Option<uuid::Uuid>,
     ) -> Self {
-        let children: Arc<Mutex<SwapChildren>> = Default::default();
+        let children: ChildrenWithUUID = Default::default();
         //add child_exec_index to the parameters
         let mut params = params.into();
         params.insert_unbound(
             &"child_exec_index",
             crate::param::ParamAccess::Set {
-                set: crate::param::ParamSet::USize(children.lock().index_binding()),
+                set: crate::param::ParamSet::USize(children.index_binding()),
                 binding: Default::default(),
             },
         );
@@ -143,7 +151,7 @@ impl GraphItem {
             uuid: id.unwrap_or_else(|| uuid::Uuid::new_v4()),
             inner: Arc::new(Mutex::new(GraphRootWrapper::new(
                 exec,
-                SwapChildrenContainer::new(children.clone()),
+                SwapChildrenContainer::new(children.children()),
             ))),
             params,
             children,
@@ -208,6 +216,7 @@ impl GraphItem {
         }
     }
 
+    /*
     /// Swap children
     pub fn swap_children(
         &mut self,
@@ -219,6 +228,7 @@ impl GraphItem {
             Self::Leaf { .. } => Err(new_children),
         }
     }
+    */
 
     ///Get the type name for this item.
     pub fn type_name(&self) -> &'static str {
@@ -247,6 +257,16 @@ impl ParamMapGet for GraphItem {
             Self::Node { params, .. } => params,
             Self::Leaf { params, .. } => params,
         }
+    }
+}
+
+impl ChildrenWithUUID {
+    pub fn children(&self) -> Arc<SwapChildren> {
+        self.children.clone()
+    }
+
+    pub fn index_binding(&self) -> Arc<BindingSwapSet<usize>> {
+        self.children.index_binding()
     }
 }
 

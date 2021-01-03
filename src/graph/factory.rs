@@ -13,14 +13,13 @@ use sched::{
     graph::root_clock::RootClock,
     Float,
 };
-use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
 pub fn create_instance(
     uuid: uuid::Uuid,
     type_name: &str,
     _args: &str,
-    queue_sources: &Arc<dyn QueueSource>,
+    _queue_sources: &Arc<dyn QueueSource>,
 ) -> Result<GraphItem, CreateError> {
     if type_name == "root::clock" {
         let clock = ClockData::default();

@@ -66,7 +66,7 @@ impl Sched {
         let midi_queue: MidiValueQueue = Default::default();
         let sched_queue: ArcMutex<BinaryHeapQueue<EventContainer>> = Default::default();
 
-        let (dispose_sink, mut dispose) = ::sched::std::channel_item_sink::channel_item_sink(1024);
+        let (dispose_sink, dispose) = ::sched::std::channel_item_sink::channel_item_sink(1024);
         let dispose_sink: ArcMutex<dyn ItemSink<EventContainer>> = dispose_sink.into_alock();
 
         let (mut midi_creator, midi_event_source) =

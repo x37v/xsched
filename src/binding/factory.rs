@@ -5,11 +5,11 @@ use crate::{
 };
 use sched::{
     atomic::Atomic,
-    binding::{bpm::ClockData, ParamBinding, ParamBindingGet, ParamBindingSet},
+    binding::{bpm::ClockData, ParamBinding, ParamBindingGet},
     tick::{TickResched, TickSched},
     Float,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{collections::HashMap, sync::Arc};
 
 /// Result from attempt to create an instance.

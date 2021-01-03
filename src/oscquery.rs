@@ -7,15 +7,15 @@ use crate::{
 use oscquery::{
     func_wrap::{GetFunc, GetSetFuncs, OscUpdateFunc, SetFunc},
     param::{ParamGet, ParamGetSet, ParamSet},
-    root::{NodeHandle, OscQueryGraph, OscWriteCallback},
-    value::{ClipMode, Get, Range, Value, ValueBuilder},
+    root::{NodeHandle, OscWriteCallback},
+    value::{ClipMode, Range, ValueBuilder},
     OscQueryServer,
 };
 use sched::{
     binding::{
         bpm::{Clock, ClockData},
         last::BindingLast,
-        ParamBindingGet, ParamBindingSet,
+        ParamBindingSet,
     },
     pqueue::TickPriorityEnqueue,
     tick::TickResched,
@@ -74,7 +74,7 @@ pub struct OSCQueryHandler {
     graph: std::sync::Mutex<HashMap<uuid::Uuid, Arc<GraphItem>>>,
     command_sender: SyncSender<Command>,
     server: OscQueryServer,
-    xsched_handle: NodeHandle,
+    _xsched_handle: NodeHandle,
     bindings_handle: NodeHandle,
     graph_handle: NodeHandle,
     command_receiver: Receiver<Command>,
@@ -202,7 +202,7 @@ impl OSCQueryHandler {
                             move |args: &Vec<oscquery::osc::OscType>,
                                   _addr: Option<SocketAddr>,
                                   _time: Option<(u32, u32)>,
-                                  handle: &NodeHandle|
+                                  _handle: &NodeHandle|
                                   -> Option<OscWriteCallback> {
                                 let mut args = args.iter();
                                 if let Some(::oscquery::osc::OscType::String(type_name)) =
@@ -262,7 +262,7 @@ impl OSCQueryHandler {
                             move |args: &Vec<oscquery::osc::OscType>,
                                   _addr: Option<SocketAddr>,
                                   _time: Option<(u32, u32)>,
-                                  handle: &NodeHandle|
+                                  _handle: &NodeHandle|
                                   -> Option<OscWriteCallback> {
                                 let mut args = args.iter();
                                 if let Some(::oscquery::osc::OscType::String(type_name)) =
@@ -306,7 +306,7 @@ impl OSCQueryHandler {
 
         let s = Self {
             server,
-            xsched_handle,
+            _xsched_handle: xsched_handle,
             bindings_handle,
             graph_handle,
             bindings: Default::default(),

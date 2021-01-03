@@ -581,7 +581,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             args: &Vec<oscquery::osc::OscType>,
                                             _addr: Option<SocketAddr>,
                                             _time: Option<(u32, u32)>,
-                                            handle: &NodeHandle,
+                                            _handle: &NodeHandle,
                                             | -> Option<OscWriteCallback> {
                                             if let Some(s) = s.upgrade() {
                                                 //update all the clock data parameters and then set
@@ -607,7 +607,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             },
                             Access::ClockDataGetSet(gs) => {
                                 let s = Arc::downgrade(&gs) as Weak<dyn ParamBindingSet<ClockData>>;
-                                let g = Arc::downgrade(&gs) as Weak<dyn ParamBindingGet<ClockData>>;
                                 let bl = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::last::BindingLast<ClockData>>;
                                 let bpmg = bl.clone();
                                 let ppqg = bl.clone();
