@@ -23,8 +23,6 @@ use std::sync::Arc;
 pub mod children;
 pub mod factory;
 
-const CHILD_EXEC_INDEX: &str = &"child_exec_index";
-
 #[derive(Default)]
 pub struct ChildrenWithUUID {
     children: Arc<SwapChildren>,
@@ -66,7 +64,7 @@ impl GraphItem {
         let mut params = params.into();
         //add child_exec_index to the parameters
         params.insert_unbound(
-            CHILD_EXEC_INDEX,
+            &"child_exec_index",
             crate::param::ParamAccess::Set {
                 set: crate::param::ParamSet::USize(children.index_binding()),
                 binding: Default::default(),
