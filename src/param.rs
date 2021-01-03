@@ -50,7 +50,12 @@ pub struct ParamHashMap {
 }
 
 impl ParamHashMap {
-    ///Get the param keys.
+    /// See if the key exists in this map.
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.inner.contains_key(key)
+    }
+
+    /// Get the param keys.
     pub fn keys(&self) -> Keys<'_, &'static str, ParamAccess> {
         self.inner.keys()
     }

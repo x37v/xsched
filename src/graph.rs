@@ -23,6 +23,8 @@ use std::sync::Arc;
 pub mod children;
 pub mod factory;
 
+const CHILD_EXEC_INDEX: &str = &"child_exec_index";
+
 #[derive(Default)]
 pub struct ChildrenWithUUID {
     children: Arc<SwapChildren>,
@@ -58,6 +60,22 @@ pub enum GraphItem {
 }
 
 impl GraphItem {
+    //helper to get children and create params
+    fn children_params<P: Into<ParamHashMap>>(params: P) -> (ChildrenWithUUID, ParamHashMap) {
+        let children: ChildrenWithUUID = Default::default();
+        let mut params = params.into();
+        //add child_exec_index to the parameters
+        assert!(!params.contains_key(CHILD_EXEC_INDEX));
+        params.insert_unbound(
+            CHILD_EXEC_INDEX,
+            crate::param::ParamAccess::Set {
+                set: crate::param::ParamSet::USize(children.index_binding()),
+                binding: Default::default(),
+            },
+        );
+        (children, params)
+    }
+
     /// Create a new leaf.
     ///
     /// # Arguments
@@ -98,16 +116,7 @@ impl GraphItem {
         params: P,
         id: Option<uuid::Uuid>,
     ) -> Self {
-        let children: ChildrenWithUUID = Default::default();
-        //add child_exec_index to the parameters
-        let mut params = params.into();
-        params.insert_unbound(
-            &"child_exec_index",
-            crate::param::ParamAccess::Set {
-                set: crate::param::ParamSet::USize(children.index_binding()),
-                binding: Default::default(),
-            },
-        );
+        let (children, params) = Self::children_params(params);
         Self::Node {
             type_name,
             uuid: id.unwrap_or_else(|| uuid::Uuid::new_v4()),
@@ -136,16 +145,7 @@ impl GraphItem {
         params: P,
         id: Option<uuid::Uuid>,
     ) -> Self {
-        let children: ChildrenWithUUID = Default::default();
-        //add child_exec_index to the parameters
-        let mut params = params.into();
-        params.insert_unbound(
-            &"child_exec_index",
-            crate::param::ParamAccess::Set {
-                set: crate::param::ParamSet::USize(children.index_binding()),
-                binding: Default::default(),
-            },
-        );
+        let (children, params) = Self::children_params(params);
         Self::Root {
             type_name,
             uuid: id.unwrap_or_else(|| uuid::Uuid::new_v4()),
