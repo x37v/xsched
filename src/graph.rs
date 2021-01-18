@@ -23,8 +23,10 @@ use std::sync::Arc;
 pub mod children;
 pub mod factory;
 
+pub type ChildrenUUIDs = (Arc<crate::graph::children::Children>, Vec<uuid::Uuid>);
+
 #[derive(Default)]
-pub struct ChildrenWithUUID {
+pub struct SwapChildrenWithUUIDs {
     children: Arc<SwapChildren>,
     uuids: Vec<uuid::Uuid>,
 }
@@ -37,7 +39,7 @@ pub enum GraphItem {
         uuid: uuid::Uuid,
         inner: ArcMutexEvent,
         params: ParamHashMap,
-        children: ChildrenWithUUID,
+        children: Mutex<SwapChildrenWithUUIDs>,
         active_gate: Mutex<Option<Arc<Atomic<bool>>>>,
     },
     ///Node can have children.
@@ -46,7 +48,7 @@ pub enum GraphItem {
         uuid: uuid::Uuid,
         inner: GraphNodeContainer,
         params: ParamHashMap,
-        children: ChildrenWithUUID,
+        children: Mutex<SwapChildrenWithUUIDs>,
     },
     ///Leaf is a terminal node, cannot have children.
     Leaf {
@@ -59,8 +61,8 @@ pub enum GraphItem {
 
 impl GraphItem {
     //helper to get children and create params
-    fn children_params<P: Into<ParamHashMap>>(params: P) -> (ChildrenWithUUID, ParamHashMap) {
-        let children: ChildrenWithUUID = Default::default();
+    fn children_params<P: Into<ParamHashMap>>(params: P) -> (SwapChildrenWithUUIDs, ParamHashMap) {
+        let children: SwapChildrenWithUUIDs = Default::default();
         let mut params = params.into();
         //add child_exec_index to the parameters
         params.insert_unbound(
@@ -120,7 +122,7 @@ impl GraphItem {
             inner: GraphNodeWrapper::new(exec, SwapChildrenContainer::new(children.children()))
                 .into(),
             params,
-            children,
+            children: Mutex::new(children),
         }
     }
 
@@ -151,7 +153,7 @@ impl GraphItem {
                 SwapChildrenContainer::new(children.children()),
             ))),
             params,
-            children,
+            children: Mutex::new(children),
             active_gate: Mutex::new(None),
         }
     }
@@ -213,19 +215,28 @@ impl GraphItem {
         }
     }
 
-    /*
-    /// Swap children
-    pub fn swap_children(
-        &mut self,
-        new_children: ALockChildren,
-    ) -> Result<ALockChildren, ALockChildren> {
+    /// Get the uuids of the children.
+    pub fn children_uuids(&self) -> Option<Vec<uuid::Uuid>> {
         match self {
-            Self::Root { children, .. } => Ok(children.lock().swap(new_children)),
-            Self::Node { children, .. } => Ok(children.lock().swap(new_children)),
+            Self::Root { ref children, .. } | Self::Node { ref children, .. } => {
+                Some(children.lock().uuids.clone())
+            }
+            Self::Leaf { .. } => None,
+        }
+    }
+
+    /// Swap the children.
+    pub fn children_swap(
+        &self,
+        new_children: ChildrenUUIDs,
+    ) -> Result<ChildrenUUIDs, ChildrenUUIDs> {
+        match self {
+            Self::Root { ref children, .. } | Self::Node { ref children, .. } => {
+                Ok(children.lock().replace(new_children))
+            }
             Self::Leaf { .. } => Err(new_children),
         }
     }
-    */
 
     ///Get the type name for this item.
     pub fn type_name(&self) -> &'static str {
@@ -257,7 +268,14 @@ impl ParamMapGet for GraphItem {
     }
 }
 
-impl ChildrenWithUUID {
+impl SwapChildrenWithUUIDs {
+    pub fn replace(&mut self, children: ChildrenUUIDs) -> ChildrenUUIDs {
+        (
+            self.children.replace(children.0),
+            std::mem::replace(&mut self.uuids, children.1),
+        )
+    }
+
     pub fn children(&self) -> Arc<SwapChildren> {
         self.children.clone()
     }
