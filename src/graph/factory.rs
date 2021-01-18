@@ -38,14 +38,33 @@ pub fn create_instance(
             Some(uuid),
         ))
     } else if type_name == "leaf::midi::note" {
-        //TODO bind values
-        let map = HashMap::new();
+        let chan: Arc<BindingSwapGet<u8>> = Arc::new(BindingSwapGet::new(0));
+        let num: Arc<BindingSwapGet<u8>> = Arc::new(BindingSwapGet::new(64));
+        let on_vel: Arc<BindingSwapGet<u8>> = Arc::new(BindingSwapGet::new(127));
+        let off_vel: Arc<BindingSwapGet<u8>> = Arc::new(BindingSwapGet::new(127));
+        let dur: Arc<BindingSwapGet<TickResched>> =
+            Arc::new(BindingSwapGet::new(TickResched::ContextRelative(1)));
+
+        //setup parameters
+        let mut map = HashMap::new();
+        map.insert("chan", ParamAccess::new_get(ParamGet::U8(chan.clone())));
+        map.insert("num", ParamAccess::new_get(ParamGet::U8(num.clone())));
+        map.insert("on_vel", ParamAccess::new_get(ParamGet::U8(on_vel.clone())));
+        map.insert(
+            "off_vel",
+            ParamAccess::new_get(ParamGet::U8(off_vel.clone())),
+        );
+        map.insert(
+            "dur",
+            ParamAccess::new_get(ParamGet::TickResched(dur.clone())),
+        );
+
         let note = ::sched::graph::midi::MidiNote::new(
-            &0,
-            64,
-            &TickResched::ContextRelative(1),
-            &127,
-            &127,
+            chan as Arc<dyn ParamBindingGet<u8>>,
+            num as Arc<dyn ParamBindingGet<u8>>,
+            dur as Arc<dyn ParamBindingGet<TickResched>>,
+            on_vel as Arc<dyn ParamBindingGet<u8>>,
+            off_vel as Arc<dyn ParamBindingGet<u8>>,
             queue_sources.midi_event_source(),
             queue_sources.midi_queue() as _,
         );
