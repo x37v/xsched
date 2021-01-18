@@ -30,7 +30,7 @@ pub struct SwapChildren {
 pub struct SwapChildrenContainer(Mutex<Arc<SwapChildren>>);
 
 impl SwapChildren {
-    pub fn swap(&self, children: Arc<Children>) -> Arc<Children> {
+    pub fn replace(&self, children: Arc<Children>) -> Arc<Children> {
         let mut g = self.children.lock();
         std::mem::replace(g.deref_mut(), children)
     }
