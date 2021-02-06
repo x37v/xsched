@@ -33,18 +33,21 @@ use std::{
     },
 };
 
-#[derive(Clone, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 enum ParamOwner {
     Binding(uuid::Uuid),
     GraphItem(uuid::Uuid),
 }
 
+#[derive(Deserialize, Serialize)]
 enum Command {
+    //TODO ParamUnbind
     ParamBind {
         owner: ParamOwner,
-        handle: NodeHandle,
-        param_name: &'static str,
-        param_id: String,
+        param_name: String,
+        param_id: uuid::Uuid,
     },
     BindingCreate {
         id: Option<uuid::Uuid>,
@@ -66,13 +69,6 @@ enum Command {
 struct ParamOSCQueryGet {
     key: &'static str,
     map: Weak<dyn ParamMapGet + Send + Sync>,
-}
-
-//wrapper to impl OscUpdate
-struct ParamOSCQueryOscUpdate {
-    owner: ParamOwner,
-    command_sender: SyncSender<Command>,
-    key: &'static str,
 }
 
 //wrapper to impl GetSet
@@ -116,44 +112,6 @@ impl ::oscquery::value::Get<String> for ParamOSCQueryGet {
     }
 }
 
-impl ::oscquery::node::OscUpdate for ParamOSCQueryOscUpdate {
-    fn osc_update(
-        &self,
-        args: &Vec<OscType>,
-        _addr: Option<SocketAddr>,
-        _time: Option<(u32, u32)>,
-        handle: &NodeHandle,
-    ) -> Option<oscquery::root::OscWriteCallback> {
-        match args.first() {
-            Some(OscType::String(v)) => {
-                //println!("to bind {:?}, {} {}", self.owner, self.key, v);
-                //TODO use 2nd arg as uuid for command response?
-                //use time?
-                self.command_sender
-                    .send(Command::ParamBind {
-                        owner: self.owner.clone(),
-                        handle: handle.clone(),
-                        param_name: self.key,
-                        param_id: v.clone(),
-                    })
-                    .expect("to send command");
-            }
-            _ => (),
-        }
-        None
-    }
-}
-
-impl ParamOSCQueryOscUpdate {
-    pub fn new(owner: ParamOwner, command_sender: SyncSender<Command>, key: &'static str) -> Self {
-        Self {
-            owner,
-            command_sender,
-            key,
-        }
-    }
-}
-
 impl ::oscquery::value::Get<OscArray> for GraphChildrenParamGet {
     fn get(&self) -> OscArray {
         let mut children = Vec::new();
@@ -174,6 +132,16 @@ impl OSCQueryHandler {
         _bindings: HashMap<String, Arc<Instance>>,
         _graph: HashMap<String, GraphItem>,
     ) -> Result<Self, std::io::Error> {
+        println!(
+            "examle command {}",
+            serde_json::to_string(&Command::ParamBind {
+                owner: ParamOwner::Binding(uuid::Uuid::new_v4()),
+                param_name: "toast".into(),
+                param_id: uuid::Uuid::new_v4(),
+            })
+            .unwrap()
+        );
+
         let server = OscQueryServer::new(
             Some("xsched".into()),
             &SocketAddr::from_str("0.0.0.0:3000").expect("failed to bind for http"),
@@ -189,30 +157,50 @@ impl OSCQueryHandler {
             )
             .unwrap();
 
-        let _ = server
-            .add_node(
-                ::oscquery::node::Set::new(
-                    "command",
-                    Some("json formatted string command"),
-                    vec![ParamSet::String(
-                        //handle in callback
-                        ValueBuilder::new(Arc::new(()) as _).build(),
-                    )],
-                    Some(Box::new(OscUpdateFunc::new(
-                        move |args: &Vec<OscType>,
-                              _addr: Option<SocketAddr>,
-                              _time: Option<(u32, u32)>,
-                              _handle: &NodeHandle|
-                              -> Option<OscWriteCallback> {
-                            //TODO
-                            None
-                        },
-                    ))),
+        {
+            let command_sender = command_sender.clone();
+            let _ = server
+                .add_node(
+                    ::oscquery::node::Set::new(
+                        "command",
+                        Some("json formatted string command"),
+                        vec![ParamSet::String(
+                            //handle in callback
+                            ValueBuilder::new(Arc::new(()) as _).build(),
+                        )],
+                        Some(Box::new(OscUpdateFunc::new(
+                            move |args: &Vec<OscType>,
+                                  _addr: Option<SocketAddr>,
+                                  _time: Option<(u32, u32)>,
+                                  _handle: &NodeHandle|
+                                  -> Option<OscWriteCallback> {
+                                match args.first() {
+                                    Some(OscType::String(v)) => {
+                                        println!("got command {}", v);
+                                        let cmd: Result<Command, _> =
+                                            serde_json::from_str(v.as_str());
+                                        if let Ok(cmd) = cmd {
+                                            if command_sender.send(cmd).is_err() {
+                                                eprintln!("error sending command");
+                                            }
+                                        } else {
+                                            eprintln!(
+                                                "failed to deserialize command from str {}",
+                                                v
+                                            );
+                                        }
+                                    }
+                                    _ => (),
+                                }
+                                None
+                            },
+                        ))),
+                    )
+                    .unwrap(),
+                    Some(xsched_handle.clone()),
                 )
-                .unwrap(),
-                Some(xsched_handle.clone()),
-            )
-            .unwrap();
+                .unwrap();
+        }
 
         let bindings_base = server
             .add_node(
@@ -288,12 +276,7 @@ impl OSCQueryHandler {
                     )
                     .unwrap();
             }
-            //TODO activation control
-            self.add_params(
-                ParamOwner::GraphItem(item.uuid().clone()),
-                item.clone() as _,
-                handle.clone(),
-            );
+            self.add_params(item.clone() as _, handle.clone());
             guard.insert(item.uuid(), item.clone());
 
             //TODO use some config to decide if we should start the event immediately
@@ -306,7 +289,6 @@ impl OSCQueryHandler {
             }
 
             {
-                let parent_id = item.uuid();
                 let wrapper = GraphChildrenParamGet {
                     owner: Arc::downgrade(&item),
                 };
@@ -314,7 +296,6 @@ impl OSCQueryHandler {
                 match item.as_ref() {
                     GraphItem::Leaf { .. } => (),
                     GraphItem::Root { .. } | GraphItem::Node { .. } => {
-                        let command_sender = self.command_sender.clone();
                         let _ = self
                             .server
                             .add_node(
@@ -369,17 +350,12 @@ impl OSCQueryHandler {
                     .unwrap();
             }
             //parameters
-            self.add_params(
-                ParamOwner::Binding(binding.uuid().clone()),
-                binding.clone() as _,
-                handle.clone(),
-            );
+            self.add_params(binding.clone() as _, handle.clone());
         }
     }
 
     fn add_params(
         &self,
-        owner: ParamOwner,
         item: ::std::sync::Arc<dyn ParamMapGet + Send + Sync>,
         handle: ::oscquery::root::NodeHandle,
     ) {
@@ -410,47 +386,31 @@ impl OSCQueryHandler {
         }
     }
 
-    fn param_bind(
-        &self,
-        owner: ParamOwner,
-        handle: NodeHandle,
-        param_name: &'static str,
-        param_id: String,
-    ) {
+    fn param_bind(&self, owner: ParamOwner, param_name: String, param_id: uuid::Uuid) {
         if let Ok(bindings_guard) = self.bindings.lock() {
             match owner {
                 //bind parameters
                 ParamOwner::Binding(binding_id) => {
                     if let Some(binding) = bindings_guard.get(&binding_id) {
-                        if param_id.is_empty() {
-                            binding.params().unbind(param_name);
-                        } else {
-                            if let Ok(param_id) = ::uuid::Uuid::from_str(&param_id) {
-                                //TODO cycle detection
-                                //TODO error handling
-                                if let Some(param) = bindings_guard.get(&param_id) {
-                                    let _r = binding.params().try_bind(param_name, param.clone());
-                                }
-                            }
+                        //TODO cycle detection
+                        //TODO error handling
+                        if let Some(param) = bindings_guard.get(&param_id) {
+                            let _r = binding
+                                .params()
+                                .try_bind(param_name.as_str(), param.clone());
                         }
-                        self.server.trigger(handle);
                     }
+                    //get handle and self.server.trigger(handle);
                 }
                 ParamOwner::GraphItem(item_id) => {
                     if let Ok(graph_guard) = self.graph.lock() {
                         if let Some(item) = graph_guard.get(&item_id) {
-                            if param_id.is_empty() {
-                                item.params().unbind(param_name);
-                            } else {
-                                if let Ok(param_id) = ::uuid::Uuid::from_str(&param_id) {
-                                    //TODO error handling
-                                    if let Some(param) = bindings_guard.get(&param_id) {
-                                        let _r = item.params().try_bind(param_name, param.clone());
-                                    }
-                                }
+                            //TODO error handling
+                            if let Some(param) = bindings_guard.get(&param_id) {
+                                let _r = item.params().try_bind(param_name.as_str(), param.clone());
                             }
-                            self.server.trigger(handle);
                         }
+                        //get handle and self.server.trigger(handle);
                     }
                 }
             }
@@ -509,10 +469,9 @@ impl OSCQueryHandler {
         match cmd {
             Command::ParamBind {
                 owner,
-                handle,
                 param_name,
                 param_id,
-            } => self.param_bind(owner, handle, param_name, param_id),
+            } => self.param_bind(owner, param_name, param_id),
             Command::BindingCreate {
                 id,
                 type_name,
