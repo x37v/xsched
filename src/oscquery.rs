@@ -47,12 +47,12 @@ enum Command {
         param_id: String,
     },
     BindingCreate {
-        id: Option<String>,
+        id: Option<uuid::Uuid>,
         type_name: String,
         args: String,
     },
-    GraphNodeCreate {
-        id: Option<String>,
+    GraphItemCreate {
+        id: Option<uuid::Uuid>,
         type_name: String,
         args: String,
     },
@@ -62,8 +62,8 @@ enum Command {
     },
 }
 
-//wrapper to impl GetSet
-struct ParamOSCQueryGetSet {
+//wrapper to impl Get
+struct ParamOSCQueryGet {
     key: &'static str,
     map: Weak<dyn ParamMapGet + Send + Sync>,
 }
@@ -76,7 +76,7 @@ struct ParamOSCQueryOscUpdate {
 }
 
 //wrapper to impl GetSet
-struct GraphChildrenParamGetSet {
+struct GraphChildrenParamGet {
     owner: Weak<GraphItem>,
 }
 
@@ -93,7 +93,7 @@ pub struct OSCQueryHandler {
     queue_sources: Arc<dyn QueueSource>,
 }
 
-impl ParamOSCQueryGetSet {
+impl ParamOSCQueryGet {
     fn new(key: &'static str, map: &Arc<dyn ParamMapGet + Send + Sync>) -> Self {
         Self {
             key,
@@ -106,19 +106,13 @@ fn map_uuid(uuid: &uuid::Uuid) -> String {
     uuid.to_hyphenated().to_string()
 }
 
-impl ::oscquery::value::Get<String> for ParamOSCQueryGetSet {
+impl ::oscquery::value::Get<String> for ParamOSCQueryGet {
     fn get(&self) -> String {
         self.map.upgrade().map_or("".into(), |m| {
             m.params()
                 .uuid(self.key)
                 .map_or("".into(), |u| map_uuid(&u))
         })
-    }
-}
-
-impl ::oscquery::value::Set<String> for ParamOSCQueryGetSet {
-    fn set(&self, _value: String) {
-        //use the oscquery handler
     }
 }
 
@@ -160,7 +154,7 @@ impl ParamOSCQueryOscUpdate {
     }
 }
 
-impl ::oscquery::value::Get<OscArray> for GraphChildrenParamGetSet {
+impl ::oscquery::value::Get<OscArray> for GraphChildrenParamGet {
     fn get(&self) -> OscArray {
         let mut children = Vec::new();
         if let Some(owner) = self.owner.upgrade() {
@@ -171,12 +165,6 @@ impl ::oscquery::value::Get<OscArray> for GraphChildrenParamGetSet {
             }
         }
         OscArray { content: children }
-    }
-}
-
-impl ::oscquery::value::Set<OscArray> for GraphChildrenParamGetSet {
-    fn set(&self, _value: OscArray) {
-        //use the oscquery handler
     }
 }
 
@@ -201,6 +189,31 @@ impl OSCQueryHandler {
             )
             .unwrap();
 
+        let _ = server
+            .add_node(
+                ::oscquery::node::Set::new(
+                    "command",
+                    Some("json formatted string command"),
+                    vec![ParamSet::String(
+                        //handle in callback
+                        ValueBuilder::new(Arc::new(()) as _).build(),
+                    )],
+                    Some(Box::new(OscUpdateFunc::new(
+                        move |args: &Vec<OscType>,
+                              _addr: Option<SocketAddr>,
+                              _time: Option<(u32, u32)>,
+                              _handle: &NodeHandle|
+                              -> Option<OscWriteCallback> {
+                            //TODO
+                            None
+                        },
+                    ))),
+                )
+                .unwrap(),
+                Some(xsched_handle.clone()),
+            )
+            .unwrap();
+
         let bindings_base = server
             .add_node(
                 oscquery::node::Container::new("bindings", Some("xsched scheduler bindings"))
@@ -214,51 +227,6 @@ impl OSCQueryHandler {
                 Some(bindings_base),
             )
             .unwrap();
-        {
-            let command_sender = command_sender.clone();
-            let _ = server
-                .add_node(
-                    ::oscquery::node::Set::new(
-                        "create",
-                        Some("create a new binding: type_name, arg_string, [uuid]"),
-                        [0, 1, 2]
-                            .iter()
-                            .map(|_| {
-                                ::oscquery::param::ParamSet::String(
-                                    ValueBuilder::new(Arc::new(()) as _).build(),
-                                )
-                            })
-                            .collect::<Vec<::oscquery::param::ParamSet>>(),
-                        Some(Box::new(OscUpdateFunc::new(
-                            move |args: &Vec<OscType>,
-                                  _addr: Option<SocketAddr>,
-                                  _time: Option<(u32, u32)>,
-                                  _handle: &NodeHandle|
-                                  -> Option<OscWriteCallback> {
-                                let mut args = args.iter();
-                                if let Some(OscType::String(type_name)) = args.next() {
-                                    if let Some(OscType::String(args_string)) = args.next() {
-                                        let id = match args.next() {
-                                            Some(OscType::String(uuid)) => Some(uuid.into()),
-                                            _ => None,
-                                        };
-                                        //TODO error reporting
-                                        let _ = command_sender.send(Command::BindingCreate {
-                                            id,
-                                            type_name: type_name.into(),
-                                            args: args_string.into(),
-                                        });
-                                    }
-                                }
-                                None
-                            },
-                        ))),
-                    )
-                    .unwrap(),
-                    Some(bindings_base),
-                )
-                .unwrap();
-        }
 
         //TODO aliases
         let graph_base = server
@@ -267,51 +235,6 @@ impl OSCQueryHandler {
                 Some(xsched_handle),
             )
             .unwrap();
-        {
-            let command_sender = command_sender.clone();
-            let _ = server
-                .add_node(
-                    ::oscquery::node::Set::new(
-                        "create",
-                        Some("create a new graph node: type_name, arg_string, [uuid]"),
-                        [0, 1, 2]
-                            .iter()
-                            .map(|_| {
-                                ::oscquery::param::ParamSet::String(
-                                    ValueBuilder::new(Arc::new(()) as _).build(),
-                                )
-                            })
-                            .collect::<Vec<::oscquery::param::ParamSet>>(),
-                        Some(Box::new(OscUpdateFunc::new(
-                            move |args: &Vec<OscType>,
-                                  _addr: Option<SocketAddr>,
-                                  _time: Option<(u32, u32)>,
-                                  _handle: &NodeHandle|
-                                  -> Option<OscWriteCallback> {
-                                let mut args = args.iter();
-                                if let Some(OscType::String(type_name)) = args.next() {
-                                    if let Some(OscType::String(args_string)) = args.next() {
-                                        let id = match args.next() {
-                                            Some(OscType::String(uuid)) => Some(uuid.into()),
-                                            _ => None,
-                                        };
-                                        //TODO error reporting
-                                        let _ = command_sender.send(Command::GraphNodeCreate {
-                                            id,
-                                            type_name: type_name.into(),
-                                            args: args_string.into(),
-                                        });
-                                    }
-                                }
-                                None
-                            },
-                        ))),
-                    )
-                    .unwrap(),
-                    Some(graph_base),
-                )
-                .unwrap();
-        }
 
         let graph_handle = server
             .add_node(
@@ -384,7 +307,7 @@ impl OSCQueryHandler {
 
             {
                 let parent_id = item.uuid();
-                let wrapper = GraphChildrenParamGetSet {
+                let wrapper = GraphChildrenParamGet {
                     owner: Arc::downgrade(&item),
                 };
                 //children
@@ -395,67 +318,12 @@ impl OSCQueryHandler {
                         let _ = self
                             .server
                             .add_node(
-                                ::oscquery::node::GetSet::new(
+                                ::oscquery::node::Get::new(
                                     "children",
                                     Some("list of child uuids"),
-                                    vec![::oscquery::param::ParamGetSet::Array(
+                                    vec![::oscquery::param::ParamGet::Array(
                                         ValueBuilder::new(Arc::new(wrapper) as _).build(),
                                     )],
-                                    //handle children update
-                                    Some(Box::new(OscUpdateFunc::new(
-                                                move |args: &Vec<OscType>,
-                                                _addr: Option<SocketAddr>,
-                                                _time: Option<(u32, u32)>,
-                                                _handle: &NodeHandle|
-                                                -> Option<OscWriteCallback> {
-                                                    let mut ids: Option<Vec<uuid::Uuid>> = None;
-                                                    let mut iter = args.iter();
-                                                    let first = iter.next();
-                                                    //workaround oscsend not being able to send
-                                                    //arrays, allow for simply a list of strings
-                                                    match first {
-                                                        Some(OscType::Array(a)) => {
-                                                            //TODO optionally allow for additional params
-                                                            //to set the type of children and the cmd id
-                                                            //convert args into vector of uuids, if possible
-                                                            ids = a.content.iter().map(|a| {
-                                                                match a {
-                                                                    OscType::String(s) =>
-                                                                        ::uuid::Uuid::from_str(&s).ok(),
-                                                                    _ => None
-                                                                }
-                                                            }).collect();
-                                                        },
-                                                        //if the first is a uuid string, the rest
-                                                        //must be uuid strings
-                                                        Some(OscType::String(f)) => {
-                                                            if let Some(f) = ::uuid::Uuid::from_str(&f).ok() {
-                                                                let mut rest: Vec<Option<uuid::Uuid>> = iter.map(|a| {
-                                                                    match a {
-                                                                        OscType::String(s) =>
-                                                                            ::uuid::Uuid::from_str(&s).ok(),
-                                                                        _ => None
-                                                                    }
-                                                                }).collect();
-                                                                let mut tmp = vec![Some(f)];
-                                                                tmp.append(&mut rest);
-                                                                ids = tmp.into_iter().collect();
-                                                            };
-                                                        }
-                                                        _ => ()
-                                                    };
-                                                    if let Some(children_ids) = ids {
-                                                        let _ =
-                                                            command_sender.send(Command::GraphNodeSetChildren {
-                                                                parent_id,
-                                                                children_ids
-                                                            });
-                                                    } else {
-                                                        //TODO report
-                                                    }
-                                                    None
-                                                },
-                                    ))),
                                 )
                                 .unwrap(),
                                 Some(handle),
@@ -524,22 +392,16 @@ impl OSCQueryHandler {
             .unwrap();
         let keys: Vec<_> = item.params().keys().into_iter().cloned().collect();
         for key in keys {
-            let wrapper = Arc::new(ParamOSCQueryGetSet::new(key, &item));
-            let handler = Box::new(ParamOSCQueryOscUpdate::new(
-                owner.clone(),
-                self.command_sender.clone(),
-                key,
-            ));
+            let wrapper = Arc::new(ParamOSCQueryGet::new(key, &item));
             let _ = self
                 .server
                 .add_node(
-                    ::oscquery::node::GetSet::new(
+                    ::oscquery::node::Get::new(
                         key,
                         Some("binding_id"),
-                        vec![::oscquery::param::ParamGetSet::String(
+                        vec![::oscquery::param::ParamGet::String(
                             ValueBuilder::new(wrapper as _).build(),
                         )],
-                        Some(handler),
                     )
                     .unwrap(),
                     Some(phandle),
@@ -595,38 +457,23 @@ impl OSCQueryHandler {
         }
     }
 
-    fn binding_create(&self, uuid: Option<String>, type_name: String, args: String) {
-        let uuid = uuid.map_or_else(
-            || Ok(::uuid::Uuid::new_v4()),
-            |uuid| ::uuid::Uuid::from_str(&uuid),
-        );
-        if let Ok(uuid) = uuid {
-            match crate::binding::factory::create_instance(uuid, &type_name, &args) {
-                Ok(inst) => {
-                    self.add_binding(Arc::new(inst));
-                }
-                Err(e) => println!("error creating instance {}", e),
+    fn binding_create(&self, uuid: Option<uuid::Uuid>, type_name: String, args: String) {
+        let uuid = uuid.unwrap_or_else(|| uuid::Uuid::new_v4());
+        match crate::binding::factory::create_instance(uuid, &type_name, &args) {
+            Ok(inst) => {
+                self.add_binding(Arc::new(inst));
             }
+            Err(e) => println!("error creating instance {}", e),
         }
     }
 
-    fn graph_node_create(&self, uuid: Option<String>, type_name: String, args: String) {
-        let uuid = uuid.map_or_else(
-            || Ok(::uuid::Uuid::new_v4()),
-            |uuid| ::uuid::Uuid::from_str(&uuid),
-        );
-        if let Ok(uuid) = uuid {
-            match crate::graph::factory::create_instance(
-                uuid,
-                &type_name,
-                &args,
-                &self.queue_sources,
-            ) {
-                Ok(item) => {
-                    self.add_graph_item(item);
-                }
-                Err(e) => println!("error creating instance {}", e),
+    fn graph_node_create(&self, uuid: Option<uuid::Uuid>, type_name: String, args: String) {
+        let uuid = uuid.unwrap_or_else(|| uuid::Uuid::new_v4());
+        match crate::graph::factory::create_instance(uuid, &type_name, &args, &self.queue_sources) {
+            Ok(item) => {
+                self.add_graph_item(item);
             }
+            Err(e) => println!("error creating instance {}", e),
         }
     }
 
@@ -671,7 +518,7 @@ impl OSCQueryHandler {
                 type_name,
                 args,
             } => self.binding_create(id, type_name, args),
-            Command::GraphNodeCreate {
+            Command::GraphItemCreate {
                 id,
                 type_name,
                 args,
