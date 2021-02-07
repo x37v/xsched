@@ -45,19 +45,10 @@ send_cmd(
       type_name: 'node::clock_ratio',
       children: {
         NChild: midi_id
-      }
-    }
-  }
-)
-
-send_cmd(
-  {
-    ParamBind: {
-      owner: {
-        GraphItem: div_id
       },
-      param_name: 'div',
-      param_id: ppq_id
+      params: {
+        div: ppq_id
+      }
     }
   }
 )
