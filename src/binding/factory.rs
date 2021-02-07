@@ -59,7 +59,7 @@ impl InstFactItem {
 }
 
 pub fn create_instance(
-    uuid: uuid::Uuid,
+    uuid: &uuid::Uuid,
     type_name: &str,
     args: JsonValue,
 ) -> Result<Instance, CreateError> {

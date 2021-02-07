@@ -18,11 +18,12 @@ use serde_json::value::Value as JsonValue;
 use std::{collections::HashMap, sync::Arc};
 
 pub fn create_instance(
-    uuid: uuid::Uuid,
+    uuid: &uuid::Uuid,
     type_name: &str,
     _args: Option<JsonValue>,
     queue_sources: &Arc<dyn QueueSource>,
 ) -> Result<GraphItem, CreateError> {
+    let uuid = uuid.clone();
     //TODO build.rs BindStoreNode for all the binding types
     match type_name {
         "root::clock" => {

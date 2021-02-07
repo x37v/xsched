@@ -31,11 +31,17 @@ impl Instance {
         P: Into<ParamHashMap>,
         A: Into<Access>,
     {
-        Self::new_with_id(type_name, binding, params, uuid::Uuid::new_v4())
+        let id = uuid::Uuid::new_v4();
+        Self::new_with_id(type_name, binding, params, &id)
     }
 
     /// Create a new binding instance, with the given id.
-    pub fn new_with_id<P, A>(type_name: &'static str, binding: A, params: P, id: uuid::Uuid) -> Self
+    pub fn new_with_id<P, A>(
+        type_name: &'static str,
+        binding: A,
+        params: P,
+        id: &uuid::Uuid,
+    ) -> Self
     where
         P: Into<ParamHashMap>,
         A: Into<Access>,
@@ -43,7 +49,7 @@ impl Instance {
         Self {
             binding: binding.into(),
             params: params.into(),
-            uuid: id,
+            uuid: id.clone(),
             type_name,
         }
     }

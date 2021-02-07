@@ -51,6 +51,7 @@ enum GraphNodeChildren {
 
 #[derive(Deserialize, Serialize)]
 enum Command {
+    Batch(Box<Vec<Command>>),
     ParamBind {
         owner: ParamOwner,
         param_name: String,
@@ -445,7 +446,7 @@ impl OSCQueryHandler {
         }
     }
 
-    fn param_unbind(&self, owner: ParamOwner, param_name: &str) {
+    fn param_unbind(&self, owner: &ParamOwner, param_name: &str) {
         if let Ok(bindings_guard) = self.bindings.lock() {
             match owner {
                 //bind parameters
@@ -499,18 +500,18 @@ impl OSCQueryHandler {
 
     fn binding_create(
         &self,
-        uuid: Option<uuid::Uuid>,
-        type_name: String,
+        uuid: &Option<uuid::Uuid>,
+        type_name: &str,
         args: JsonValue,
-        params: Option<HashMap<String, uuid::Uuid>>,
+        params: &Option<HashMap<String, uuid::Uuid>>,
     ) {
-        let uuid = uuid.unwrap_or_else(|| uuid::Uuid::new_v4());
-        match crate::binding::factory::create_instance(uuid, &type_name, args) {
+        let uuid = uuid.map_or_else(|| uuid::Uuid::new_v4(), |u| u.clone());
+        match crate::binding::factory::create_instance(&uuid, type_name, args) {
             Ok(inst) => {
                 self.add_binding(Arc::new(inst));
                 if let Some(params) = params {
                     let owner = ParamOwner::Binding(uuid);
-                    for (name, id) in &params {
+                    for (name, id) in params.iter() {
                         self.param_bind(&owner, name, id);
                     }
                 }
@@ -521,22 +522,22 @@ impl OSCQueryHandler {
 
     fn graph_node_create(
         &self,
-        uuid: Option<uuid::Uuid>,
-        type_name: String,
+        uuid: &Option<uuid::Uuid>,
+        type_name: &str,
         args: Option<JsonValue>,
-        children: Option<GraphNodeChildren>,
-        params: Option<HashMap<String, uuid::Uuid>>,
+        children: &Option<GraphNodeChildren>,
+        params: &Option<HashMap<String, uuid::Uuid>>,
     ) {
-        let uuid = uuid.unwrap_or_else(|| uuid::Uuid::new_v4());
-        match crate::graph::factory::create_instance(uuid, &type_name, args, &self.queue_sources) {
+        let uuid = uuid.map_or_else(|| uuid::Uuid::new_v4(), |u| u.clone());
+        match crate::graph::factory::create_instance(&uuid, &type_name, args, &self.queue_sources) {
             Ok(item) => {
                 self.add_graph_item(item);
                 if let Some(children) = children {
-                    self.graph_node_set_children(uuid, children);
+                    self.graph_node_set_children(&uuid, children);
                 }
                 if let Some(params) = params {
-                    let owner = ParamOwner::GraphItem(uuid);
-                    for (name, id) in &params {
+                    let owner = ParamOwner::GraphItem(uuid.clone());
+                    for (name, id) in params.iter() {
                         self.param_bind(&owner, name, id);
                     }
                 }
@@ -545,9 +546,9 @@ impl OSCQueryHandler {
         }
     }
 
-    fn graph_node_set_children(&self, parent_id: uuid::Uuid, children: GraphNodeChildren) {
+    fn graph_node_set_children(&self, parent_id: &uuid::Uuid, children: &GraphNodeChildren) {
         if let Ok(guard) = self.graph.lock() {
-            if let Some(parent) = guard.get(&parent_id) {
+            if let Some(parent) = guard.get(parent_id) {
                 match children {
                     GraphNodeChildren::None => {
                         let _ = parent.children_swap((Arc::new(Children::None), vec![]));
@@ -575,7 +576,7 @@ impl OSCQueryHandler {
                         if let Some(child) = guard.get(&child_id).map(|c| c.get_node()).flatten() {
                             let _ = parent.children_swap((
                                 Arc::new(Children::NChild { child }),
-                                vec![child_id],
+                                vec![child_id.clone()],
                             ));
                         } else {
                             eprintln!("cannot find graph child with id {:?}", child_id);
@@ -588,8 +589,13 @@ impl OSCQueryHandler {
         }
     }
 
-    fn handle_command(&self, cmd: Command) {
+    fn handle_command(&self, cmd: &Command) {
         match cmd {
+            Command::Batch(b) => {
+                for c in b.iter() {
+                    self.handle_command(c);
+                }
+            }
             Command::ParamBind {
                 owner,
                 param_name,
@@ -603,14 +609,14 @@ impl OSCQueryHandler {
                 type_name,
                 args,
                 params,
-            } => self.binding_create(id, type_name, args, params),
+            } => self.binding_create(id, type_name, args.clone(), params),
             Command::GraphItemCreate {
                 id,
                 type_name,
                 args,
                 children,
                 params,
-            } => self.graph_node_create(id, type_name, args, children, params),
+            } => self.graph_node_create(id, type_name, args.clone(), children, params),
             Command::GraphNodeSetChildren {
                 parent_id,
                 children,
@@ -621,7 +627,7 @@ impl OSCQueryHandler {
     //TODO timeout?
     pub fn process(&mut self) {
         while let Ok(cmd) = self.command_receiver.try_recv() {
-            self.handle_command(cmd);
+            self.handle_command(&cmd);
         }
     }
 }
