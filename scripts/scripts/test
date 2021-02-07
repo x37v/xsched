@@ -21,47 +21,42 @@ div_id = SecureRandom.uuid
 
 send_cmd(
   {
-    BindingCreate: {
-      id: ppq_id,
-      type_name: 'const::<usize>',
-      args: 960
-    }
-  }
-)
-
-send_cmd(
-  {
-    GraphItemCreate: {
-      id: midi_id,
-      type_name: 'leaf::midi::note'
-    }
-  }
-)
-
-send_cmd(
-  {
-    GraphItemCreate: {
-      id: div_id,
-      type_name: 'node::clock_ratio',
-      children: {
-        NChild: midi_id
+    Batch: [
+      {
+        BindingCreate: {
+          id: ppq_id,
+          type_name: 'const::<usize>',
+          args: 960
+        }
       },
-      params: {
-        div: ppq_id
+      {
+        GraphItemCreate: {
+          id: midi_id,
+          type_name: 'leaf::midi::note'
+        }
+      },
+      {
+        GraphItemCreate: {
+          id: div_id,
+          type_name: 'node::clock_ratio',
+          children: {
+            NChild: midi_id
+          },
+          params: {
+            div: ppq_id
+          }
+        }
+      },
+      {
+        GraphItemCreate: {
+          id: root_id,
+          type_name: 'root::clock',
+          children: {
+            NChild: div_id
+          }
+        }
       }
-    }
-  }
-)
-
-send_cmd(
-  {
-    GraphItemCreate: {
-      id: root_id,
-      type_name: 'root::clock',
-      children: {
-        NChild: div_id
-      }
-    }
+    ]
   }
 )
 
