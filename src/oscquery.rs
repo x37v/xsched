@@ -69,6 +69,7 @@ enum Command {
         id: Option<uuid::Uuid>,
         type_name: String,
         args: Option<JsonValue>,
+        children: Option<GraphNodeChildren>,
     },
     GraphNodeSetChildren {
         parent_id: uuid::Uuid,
@@ -511,11 +512,15 @@ impl OSCQueryHandler {
         uuid: Option<uuid::Uuid>,
         type_name: String,
         args: Option<JsonValue>,
+        children: Option<GraphNodeChildren>,
     ) {
         let uuid = uuid.unwrap_or_else(|| uuid::Uuid::new_v4());
         match crate::graph::factory::create_instance(uuid, &type_name, args, &self.queue_sources) {
             Ok(item) => {
                 self.add_graph_item(item);
+                if let Some(children) = children {
+                    self.graph_node_set_children(uuid, children);
+                }
             }
             Err(e) => println!("error creating instance {}", e),
         }
@@ -583,7 +588,8 @@ impl OSCQueryHandler {
                 id,
                 type_name,
                 args,
-            } => self.graph_node_create(id, type_name, args),
+                children,
+            } => self.graph_node_create(id, type_name, args, children),
             Command::GraphNodeSetChildren {
                 parent_id,
                 children,
