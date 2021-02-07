@@ -351,8 +351,9 @@ impl OSCQueryHandler {
                     .unwrap();
             }
             //parameters
-            //TODO what if there aren't any parameters?
-            self.add_params(binding.clone() as _, handle.clone());
+            if !binding.params().is_empty() {
+                self.add_params(binding.clone() as _, handle.clone());
+            }
         }
     }
 

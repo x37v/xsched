@@ -60,6 +60,11 @@ impl ParamHashMap {
         self.inner.keys()
     }
 
+    /// See if there is anything in the map.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
     /// Get the access name for the parameter with `name`.
     pub fn access_name(&self, name: &str) -> Option<&str> {
         if let Some(param) = self.inner.get(name) {
