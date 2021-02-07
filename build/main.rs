@@ -465,10 +465,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let g = Arc::downgrade(&gs);
                     let s = g.clone();
                     let _ = self.server.add_node(
-                        oscquery::node::Set::new(
+                        oscquery::node::GetSet::new(
                             name,
                             description,
-                            vec![ParamSet::#osc_variant(
+                            vec![ParamGetSet::#osc_variant(
                                 ValueBuilder::new(Arc::new(GetSetFuncs::new(
                                     move || {
                                         #gf
@@ -800,7 +800,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let ex: #data_type = Default::default();
 
                     let f: Box<InstDataFn> = Box::new(|arg| {
-                        let v: Result<#data_type, _> = serde_json::from_str(arg);
+                        let v: Result<#data_type, _> = serde_json::from_value(arg);
                         if let Ok(v) = v {
                             Ok(
                                 (
@@ -816,7 +816,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         InstFactItem::new(f, #cdesc, Some(serde_json::to_string(&ex).unwrap())
                     ));
                     let f: Box<InstDataFn> = Box::new(|arg| {
-                        let v: Result<#data_type, _> = serde_json::from_str(arg);
+                        let v: Result<#data_type, _> = serde_json::from_value(arg);
                         if let Ok(v) = v {
                             Ok(
                                 (

@@ -14,12 +14,13 @@ use sched::{
     tick::TickResched,
     Float,
 };
+use serde_json::value::Value as JsonValue;
 use std::{collections::HashMap, sync::Arc};
 
 pub fn create_instance(
     uuid: uuid::Uuid,
     type_name: &str,
-    _args: &str,
+    _args: Option<JsonValue>,
     queue_sources: &Arc<dyn QueueSource>,
 ) -> Result<GraphItem, CreateError> {
     if type_name == "root::clock" {

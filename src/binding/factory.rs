@@ -10,13 +10,14 @@ use sched::{
     Float,
 };
 use serde::Serialize;
+use serde_json::value::Value as JsonValue;
 use std::{collections::HashMap, sync::Arc};
 
 /// Result from attempt to create an instance.
 pub type InstDataResult = Result<(Access, ParamHashMap), CreateError>;
 
 /// Instance Factory Function type.
-pub type InstDataFn = dyn Fn(&str) -> InstDataResult + Sync;
+pub type InstDataFn = dyn Fn(JsonValue) -> InstDataResult + Sync;
 
 /// Instance Factory Item.
 #[derive(Serialize)] //just for display
@@ -42,7 +43,7 @@ impl InstFactItem {
         }
     }
 
-    pub fn create(&self, args: &str) -> InstDataResult {
+    pub fn create(&self, args: JsonValue) -> InstDataResult {
         (self.func)(args)
     }
 
@@ -60,7 +61,7 @@ impl InstFactItem {
 pub fn create_instance(
     uuid: uuid::Uuid,
     type_name: &str,
-    args: &str,
+    args: JsonValue,
 ) -> Result<Instance, CreateError> {
     if let Some((key, f)) = INSTANCE_FACTORY_HASH.get_key_value(type_name) {
         match f.create(args) {

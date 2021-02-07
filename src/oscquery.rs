@@ -34,6 +34,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use serde_json::value::Value as JsonValue;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 enum ParamOwner {
@@ -52,12 +53,12 @@ enum Command {
     BindingCreate {
         id: Option<uuid::Uuid>,
         type_name: String,
-        args: String,
+        args: JsonValue,
     },
     GraphItemCreate {
         id: Option<uuid::Uuid>,
         type_name: String,
-        args: String,
+        args: Option<JsonValue>,
     },
     GraphNodeSetChildren {
         parent_id: uuid::Uuid,
@@ -350,6 +351,7 @@ impl OSCQueryHandler {
                     .unwrap();
             }
             //parameters
+            //TODO what if there aren't any parameters?
             self.add_params(binding.clone() as _, handle.clone());
         }
     }
@@ -417,9 +419,9 @@ impl OSCQueryHandler {
         }
     }
 
-    fn binding_create(&self, uuid: Option<uuid::Uuid>, type_name: String, args: String) {
+    fn binding_create(&self, uuid: Option<uuid::Uuid>, type_name: String, args: JsonValue) {
         let uuid = uuid.unwrap_or_else(|| uuid::Uuid::new_v4());
-        match crate::binding::factory::create_instance(uuid, &type_name, &args) {
+        match crate::binding::factory::create_instance(uuid, &type_name, args) {
             Ok(inst) => {
                 self.add_binding(Arc::new(inst));
             }
@@ -427,9 +429,14 @@ impl OSCQueryHandler {
         }
     }
 
-    fn graph_node_create(&self, uuid: Option<uuid::Uuid>, type_name: String, args: String) {
+    fn graph_node_create(
+        &self,
+        uuid: Option<uuid::Uuid>,
+        type_name: String,
+        args: Option<JsonValue>,
+    ) {
         let uuid = uuid.unwrap_or_else(|| uuid::Uuid::new_v4());
-        match crate::graph::factory::create_instance(uuid, &type_name, &args, &self.queue_sources) {
+        match crate::graph::factory::create_instance(uuid, &type_name, args, &self.queue_sources) {
             Ok(item) => {
                 self.add_graph_item(item);
             }
