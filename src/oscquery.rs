@@ -64,12 +64,14 @@ enum Command {
         id: Option<uuid::Uuid>,
         type_name: String,
         args: JsonValue,
+        params: Option<HashMap<String, uuid::Uuid>>,
     },
     GraphItemCreate {
         id: Option<uuid::Uuid>,
         type_name: String,
         args: Option<JsonValue>,
         children: Option<GraphNodeChildren>,
+        params: Option<HashMap<String, uuid::Uuid>>,
     },
     GraphNodeSetChildren {
         parent_id: uuid::Uuid,
@@ -465,7 +467,7 @@ impl OSCQueryHandler {
         }
     }
 
-    fn param_bind(&self, owner: ParamOwner, param_name: String, param_id: uuid::Uuid) {
+    fn param_bind(&self, owner: &ParamOwner, param_name: &str, param_id: &uuid::Uuid) {
         if let Ok(bindings_guard) = self.bindings.lock() {
             match owner {
                 //bind parameters
@@ -474,9 +476,7 @@ impl OSCQueryHandler {
                         //TODO cycle detection
                         //TODO error handling
                         if let Some(param) = bindings_guard.get(&param_id) {
-                            let _r = binding
-                                .params()
-                                .try_bind(param_name.as_str(), param.clone());
+                            let _r = binding.params().try_bind(param_name, param.clone());
                             //get handle and self.server.trigger(handle);
                         }
                     }
@@ -487,7 +487,7 @@ impl OSCQueryHandler {
                             //TODO cycle detection
                             //TODO error handling
                             if let Some(param) = bindings_guard.get(&param_id) {
-                                let _r = item.params().try_bind(param_name.as_str(), param.clone());
+                                let _r = item.params().try_bind(param_name, param.clone());
                                 //get handle and self.server.trigger(handle);
                             }
                         }
@@ -497,11 +497,23 @@ impl OSCQueryHandler {
         }
     }
 
-    fn binding_create(&self, uuid: Option<uuid::Uuid>, type_name: String, args: JsonValue) {
+    fn binding_create(
+        &self,
+        uuid: Option<uuid::Uuid>,
+        type_name: String,
+        args: JsonValue,
+        params: Option<HashMap<String, uuid::Uuid>>,
+    ) {
         let uuid = uuid.unwrap_or_else(|| uuid::Uuid::new_v4());
         match crate::binding::factory::create_instance(uuid, &type_name, args) {
             Ok(inst) => {
                 self.add_binding(Arc::new(inst));
+                if let Some(params) = params {
+                    let owner = ParamOwner::Binding(uuid);
+                    for (name, id) in &params {
+                        self.param_bind(&owner, name, id);
+                    }
+                }
             }
             Err(e) => println!("error creating instance {}", e),
         }
@@ -513,6 +525,7 @@ impl OSCQueryHandler {
         type_name: String,
         args: Option<JsonValue>,
         children: Option<GraphNodeChildren>,
+        params: Option<HashMap<String, uuid::Uuid>>,
     ) {
         let uuid = uuid.unwrap_or_else(|| uuid::Uuid::new_v4());
         match crate::graph::factory::create_instance(uuid, &type_name, args, &self.queue_sources) {
@@ -520,6 +533,12 @@ impl OSCQueryHandler {
                 self.add_graph_item(item);
                 if let Some(children) = children {
                     self.graph_node_set_children(uuid, children);
+                }
+                if let Some(params) = params {
+                    let owner = ParamOwner::GraphItem(uuid);
+                    for (name, id) in &params {
+                        self.param_bind(&owner, name, id);
+                    }
                 }
             }
             Err(e) => println!("error creating instance {}", e),
@@ -575,7 +594,7 @@ impl OSCQueryHandler {
                 owner,
                 param_name,
                 param_id,
-            } => self.param_bind(owner, param_name, param_id),
+            } => self.param_bind(&owner, param_name.as_str(), &param_id),
             Command::ParamUnbind { owner, param_name } => {
                 self.param_unbind(owner, param_name.as_str())
             }
@@ -583,13 +602,15 @@ impl OSCQueryHandler {
                 id,
                 type_name,
                 args,
-            } => self.binding_create(id, type_name, args),
+                params,
+            } => self.binding_create(id, type_name, args, params),
             Command::GraphItemCreate {
                 id,
                 type_name,
                 args,
                 children,
-            } => self.graph_node_create(id, type_name, args, children),
+                params,
+            } => self.graph_node_create(id, type_name, args, children, params),
             Command::GraphNodeSetChildren {
                 parent_id,
                 children,
