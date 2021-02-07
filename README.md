@@ -8,6 +8,14 @@
   * audio (eventually)
 * osc
 
+## TODO
+
+* Array types:
+  * use osc list type to update the whole thing
+  * use unsigned int index and an item of the given type to set the value of a specific item
+* Dictionary types
+* If we create types at runtime, we can still use `&'static str` we simply need to create it with `Box::leak`.
+
 
 ## OSC Namespace
 
@@ -124,7 +132,3 @@ All prefixed with `/xsched`
 }
 ```
 
-
-## TODO
-
-If we create types at runtime, we can still use `&'static str` we simply need to create it with `Box::leak`.
