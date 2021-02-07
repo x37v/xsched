@@ -42,6 +42,13 @@ enum ParamOwner {
     GraphItem(uuid::Uuid),
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+enum GraphNodeChildren {
+    None,
+    NChild(uuid::Uuid),
+    Indexed(Vec<uuid::Uuid>),
+}
+
 #[derive(Deserialize, Serialize)]
 enum Command {
     ParamBind {
@@ -65,7 +72,7 @@ enum Command {
     },
     GraphNodeSetChildren {
         parent_id: uuid::Uuid,
-        children_ids: Vec<uuid::Uuid>,
+        children: GraphNodeChildren,
     },
 }
 
@@ -471,27 +478,42 @@ impl OSCQueryHandler {
         }
     }
 
-    //TODO set child type
-    fn graph_node_set_children(&self, parent_id: uuid::Uuid, children_ids: Vec<uuid::Uuid>) {
+    fn graph_node_set_children(&self, parent_id: uuid::Uuid, children: GraphNodeChildren) {
         if let Ok(guard) = self.graph.lock() {
             if let Some(parent) = guard.get(&parent_id) {
-                let children: Option<Vec<GraphNodeContainer>> = children_ids
-                    .iter()
-                    .map(|id| {
-                        guard
-                            .get(&id)
-                            .map(|i| i.get_node().map(|n| n.clone()))
-                            .flatten()
-                    })
-                    .collect();
-                if let Some(children) = children {
-                    let _ = parent.children_swap((
-                        Arc::new(Children::Indexed { children }),
-                        children_ids.clone(),
-                    ));
-                //TODO trigger handle, report error
-                } else {
-                    eprintln!("cannot find graph children with ids {:?}", children_ids);
+                match children {
+                    GraphNodeChildren::None => {
+                        let _ = parent.children_swap((Arc::new(Children::None), vec![]));
+                    }
+                    GraphNodeChildren::Indexed(children_ids) => {
+                        let children: Option<Vec<GraphNodeContainer>> = children_ids
+                            .iter()
+                            .map(|id| {
+                                guard
+                                    .get(&id)
+                                    .map(|i| i.get_node().map(|n| n.clone()))
+                                    .flatten()
+                            })
+                            .collect();
+                        if let Some(children) = children {
+                            let _ = parent.children_swap((
+                                Arc::new(Children::Indexed { children }),
+                                children_ids.clone(),
+                            ));
+                        } else {
+                            eprintln!("cannot find graph children with ids {:?}", children_ids);
+                        }
+                    }
+                    GraphNodeChildren::NChild(child_id) => {
+                        if let Some(child) = guard.get(&child_id).map(|c| c.get_node()).flatten() {
+                            let _ = parent.children_swap((
+                                Arc::new(Children::NChild { child }),
+                                vec![child_id],
+                            ));
+                        } else {
+                            eprintln!("cannot find graph child with id {:?}", child_id);
+                        }
+                    }
                 }
             } else {
                 eprintln!("cannot find graph parent with id {}", parent_id);
@@ -521,8 +543,8 @@ impl OSCQueryHandler {
             } => self.graph_node_create(id, type_name, args),
             Command::GraphNodeSetChildren {
                 parent_id,
-                children_ids,
-            } => self.graph_node_set_children(parent_id, children_ids),
+                children,
+            } => self.graph_node_set_children(parent_id, children),
         }
     }
 
