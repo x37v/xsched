@@ -1,0 +1,76 @@
+#!/usr/bin/env ruby
+
+require 'osc-ruby'
+require 'json'
+require 'securerandom'
+
+IP = 'localhost'.freeze
+PORT = 3010
+CMD_ADDR = '/xsched/command'.freeze
+
+@client = OSC::Client.new(IP, PORT)
+
+def send_cmd(cmd)
+  @client.send(OSC::Message.new(CMD_ADDR, cmd.to_json.to_str))
+end
+
+root_id = SecureRandom.uuid
+midi_id = SecureRandom.uuid
+ppq_id = SecureRandom.uuid
+div_id = SecureRandom.uuid
+
+send_cmd(
+  {
+    BindingCreate: {
+      id: ppq_id,
+      type_name: 'const::<usize>',
+      args: 960
+    }
+  }
+)
+
+send_cmd(
+  {
+    GraphItemCreate: {
+      id: midi_id,
+      type_name: 'leaf::midi::note'
+    }
+  }
+)
+
+send_cmd(
+  {
+    GraphItemCreate: {
+      id: div_id,
+      type_name: 'node::clock_ratio',
+      children: {
+        NChild: midi_id
+      }
+    }
+  }
+)
+
+send_cmd(
+  {
+    ParamBind: {
+      owner: {
+        GraphItem: div_id
+      },
+      param_name: 'div',
+      param_id: ppq_id
+    }
+  }
+)
+
+send_cmd(
+  {
+    GraphItemCreate: {
+      id: root_id,
+      type_name: 'root::clock',
+      children: {
+        NChild: div_id
+      }
+    }
+  }
+)
+
