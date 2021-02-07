@@ -159,7 +159,7 @@ impl OSCQueryHandler {
         _graph: HashMap<String, GraphItem>,
     ) -> Result<Self, std::io::Error> {
         println!(
-            "examle command {}",
+            "example command {}",
             serde_json::to_string(&Command::ParamBind {
                 owner: ParamOwner::Binding(uuid::Uuid::new_v4()),
                 param_name: "toast".into(),
