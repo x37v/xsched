@@ -44,11 +44,14 @@ enum ParamOwner {
 
 #[derive(Deserialize, Serialize)]
 enum Command {
-    //TODO ParamUnbind
     ParamBind {
         owner: ParamOwner,
         param_name: String,
         param_id: uuid::Uuid,
+    },
+    ParamUnbind {
+        owner: ParamOwner,
+        param_name: String,
     },
     BindingCreate {
         id: Option<uuid::Uuid>,
@@ -389,6 +392,28 @@ impl OSCQueryHandler {
         }
     }
 
+    fn param_unbind(&self, owner: ParamOwner, param_name: &str) {
+        if let Ok(bindings_guard) = self.bindings.lock() {
+            match owner {
+                //bind parameters
+                ParamOwner::Binding(binding_id) => {
+                    if let Some(binding) = bindings_guard.get(&binding_id) {
+                        binding.params().unbind(param_name);
+                        //get handle and self.server.trigger(handle);
+                    }
+                }
+                ParamOwner::GraphItem(item_id) => {
+                    if let Ok(graph_guard) = self.graph.lock() {
+                        if let Some(item) = graph_guard.get(&item_id) {
+                            item.params().unbind(param_name);
+                            //get handle and self.server.trigger(handle);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn param_bind(&self, owner: ParamOwner, param_name: String, param_id: uuid::Uuid) {
         if let Ok(bindings_guard) = self.bindings.lock() {
             match owner {
@@ -401,19 +426,20 @@ impl OSCQueryHandler {
                             let _r = binding
                                 .params()
                                 .try_bind(param_name.as_str(), param.clone());
+                            //get handle and self.server.trigger(handle);
                         }
                     }
-                    //get handle and self.server.trigger(handle);
                 }
                 ParamOwner::GraphItem(item_id) => {
                     if let Ok(graph_guard) = self.graph.lock() {
                         if let Some(item) = graph_guard.get(&item_id) {
+                            //TODO cycle detection
                             //TODO error handling
                             if let Some(param) = bindings_guard.get(&param_id) {
                                 let _r = item.params().try_bind(param_name.as_str(), param.clone());
+                                //get handle and self.server.trigger(handle);
                             }
                         }
-                        //get handle and self.server.trigger(handle);
                     }
                 }
             }
@@ -480,6 +506,9 @@ impl OSCQueryHandler {
                 param_name,
                 param_id,
             } => self.param_bind(owner, param_name, param_id),
+            Command::ParamUnbind { owner, param_name } => {
+                self.param_unbind(owner, param_name.as_str())
+            }
             Command::BindingCreate {
                 id,
                 type_name,
