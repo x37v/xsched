@@ -82,8 +82,12 @@ struct ParamOSCQueryGet {
     map: Weak<dyn ParamMapGet + Send + Sync>,
 }
 
-//wrapper to impl GetSet
+//wrapper to impl Get
 struct GraphChildrenParamGet {
+    owner: Weak<GraphItem>,
+}
+
+struct GraphChildrenTypeNameParamGet {
     owner: Weak<GraphItem>,
 }
 
@@ -134,6 +138,17 @@ impl ::oscquery::value::Get<OscArray> for GraphChildrenParamGet {
             }
         }
         OscArray { content: children }
+    }
+}
+
+impl ::oscquery::value::Get<String> for GraphChildrenTypeNameParamGet {
+    fn get(&self) -> String {
+        self.owner
+            .upgrade()
+            .map(|o| o.children_type_name())
+            .flatten()
+            .unwrap_or(Default::default())
+            .to_string()
     }
 }
 
@@ -300,27 +315,55 @@ impl OSCQueryHandler {
             }
 
             {
-                let wrapper = GraphChildrenParamGet {
-                    owner: Arc::downgrade(&item),
-                };
                 //children
                 match item.as_ref() {
                     GraphItem::Leaf { .. } => (),
                     GraphItem::Root { .. } | GraphItem::Node { .. } => {
-                        let _ = self
+                        let children_handle = self
                             .server
                             .add_node(
-                                ::oscquery::node::Get::new(
-                                    "children",
-                                    Some("list of child uuids"),
-                                    vec![::oscquery::param::ParamGet::Array(
-                                        ValueBuilder::new(Arc::new(wrapper) as _).build(),
-                                    )],
-                                )
-                                .unwrap(),
+                                oscquery::node::Container::new("children", None).unwrap(),
                                 Some(handle),
                             )
                             .unwrap();
+                        {
+                            let wrapper = GraphChildrenParamGet {
+                                owner: Arc::downgrade(&item),
+                            };
+                            let _ = self
+                                .server
+                                .add_node(
+                                    ::oscquery::node::Get::new(
+                                        "ids",
+                                        Some("list of child uuids"),
+                                        vec![::oscquery::param::ParamGet::Array(
+                                            ValueBuilder::new(Arc::new(wrapper) as _).build(),
+                                        )],
+                                    )
+                                    .unwrap(),
+                                    Some(children_handle.clone()),
+                                )
+                                .unwrap();
+                        }
+                        {
+                            let wrapper = GraphChildrenTypeNameParamGet {
+                                owner: Arc::downgrade(&item),
+                            };
+                            let _ = self
+                                .server
+                                .add_node(
+                                    ::oscquery::node::Get::new(
+                                        "type",
+                                        Some("children type name"),
+                                        vec![::oscquery::param::ParamGet::String(
+                                            ValueBuilder::new(Arc::new(wrapper) as _).build(),
+                                        )],
+                                    )
+                                    .unwrap(),
+                                    Some(children_handle),
+                                )
+                                .unwrap();
+                        }
                     }
                 };
             }

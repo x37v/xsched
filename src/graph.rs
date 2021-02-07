@@ -238,6 +238,17 @@ impl GraphItem {
         }
     }
 
+    ///Get the type name for the children
+    pub fn children_type_name(&self) -> Option<&'static str> {
+        match self {
+            Self::Root { ref children, .. } | Self::Node { ref children, .. } => {
+                let g = children.lock();
+                Some(g.children().as_ref().type_name())
+            }
+            Self::Leaf { .. } => None,
+        }
+    }
+
     ///Get the type name for this item.
     pub fn type_name(&self) -> &'static str {
         match self {

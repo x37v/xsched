@@ -35,6 +35,15 @@ impl SwapChildren {
         std::mem::replace(g.deref_mut(), children)
     }
 
+    pub fn type_name(&self) -> &'static str {
+        let g = self.children.lock();
+        match g.as_ref() {
+            Children::None => &"None",
+            Children::NChild { .. } => &"NChild",
+            Children::Indexed { .. } => &"Indexed",
+        }
+    }
+
     pub fn index_binding(&self) -> Arc<BindingSwapSet<usize>> {
         self.index_binding.clone()
     }
