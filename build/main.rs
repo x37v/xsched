@@ -16,6 +16,7 @@ struct DataAccess {
     pub trait_name: syn::Ident,
     pub access_var: syn::Ident,
     pub type_name_prefix: &'static str,
+    pub type_name_suffix: &'static str,
 }
 
 impl DataType {
@@ -35,7 +36,8 @@ impl DataAccess {
             enum_name: format_ident!("ParamData{}", access_var),
             trait_name: format_ident!("{}", trait_name),
             access_var: format_ident!("{}", access_var),
-            type_name_prefix: if access_var.contains("KeyValue") { "key_value_" } else { "" }
+            type_name_prefix: if access_var.contains("KeyValue") { "KeyValue<" } else { "" },
+            type_name_suffix: if access_var.contains("KeyValue") { ">" } else { "" },
         }
     }
 }
@@ -93,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 });
-                let tname = format!("{}{}", a.type_name_prefix,  v.type_name.clone());
+                let tname = format!("{}{}{}", a.type_name_prefix,  v.type_name.clone(), a.type_name_suffix);
                 data_type_name.push(quote! {
                     Self::#access_var(#ename::#n(..)) => &#tname
                 });
