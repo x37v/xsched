@@ -7,23 +7,24 @@ use std::path::Path;
 struct DataType {
     pub var_name: syn::Ident,
     pub func_name: &'static str,
-    pub typ: syn::Type
+    pub typ: syn::Type,
+    pub type_name: String
 }
 
 struct DataAccess {
     pub enum_name: syn::Ident,
     pub trait_name: syn::Ident,
     pub access_var: syn::Ident,
-
+    pub type_name_prefix: &'static str,
 }
 
 impl DataType {
     pub fn new(var_name: &'static str, func_name: &'static str, typ: &'static str) -> Self {
-        let typ: syn::Type = syn::parse_str(typ).unwrap();
         Self {
             var_name: format_ident!("{}", var_name),
             func_name,
-            typ
+            type_name: typ.split("::").last().unwrap().to_string(),
+            typ: syn::parse_str(typ).unwrap(),
         }
     }
 }
@@ -34,6 +35,7 @@ impl DataAccess {
             enum_name: format_ident!("ParamData{}", access_var),
             trait_name: format_ident!("{}", trait_name),
             access_var: format_ident!("{}", access_var),
+            type_name_prefix: if access_var.contains("KeyValue") { "key_value_" } else { "" }
         }
     }
 }
@@ -70,6 +72,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ].iter().map(|a| DataAccess::new(a.0, a.1)).collect();
 
         let mut froms = Vec::new();
+        let mut data_type_name = Vec::new();
+        
         for a in access.iter() {
             let ename = a.enum_name.clone();
             let tname = a.trait_name.clone();
@@ -89,6 +93,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 });
+                let tname = format!("{}{}", a.type_name_prefix,  v.type_name.clone());
+                data_type_name.push(quote! {
+                    Self::#access_var(#ename::#n(..)) => &#tname
+                });
             }
             params_file.write_all(
                 quote! {
@@ -102,6 +110,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         params_file.write_all(
             quote! {
+                impl ParamDataAccess {
+                    pub fn data_type_name(&self) -> &'static str {
+                        match self {
+                            #(#data_type_name),*
+                        }
+                    }
+                }
                 #(#froms)*
             }
             .to_string()
