@@ -4,6 +4,40 @@ use std::env;
 use std::io::Write;
 use std::path::Path;
 
+struct DataType {
+    pub var_name: syn::Ident,
+    pub func_name: &'static str,
+    pub typ: syn::Type
+}
+
+struct DataAccess {
+    pub enum_name: syn::Ident,
+    pub trait_name: syn::Ident,
+    pub access_var: syn::Ident,
+
+}
+
+impl DataType {
+    pub fn new(var_name: &'static str, func_name: &'static str, typ: &'static str) -> Self {
+        let typ: syn::Type = syn::parse_str(typ).unwrap();
+        Self {
+            var_name: format_ident!("{}", var_name),
+            func_name,
+            typ
+        }
+    }
+}
+
+impl DataAccess {
+    pub fn new(access_var: &'static str, trait_name: &'static str) -> Self {
+        Self {
+            enum_name: format_ident!("ParamData{}", access_var),
+            trait_name: format_ident!("{}", trait_name),
+            access_var: format_ident!("{}", access_var),
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = env::var_os("OUT_DIR").unwrap();
 
@@ -12,6 +46,69 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut params_file = std::fs::File::create(&Path::new(&out_dir).join("param.rs"))?;
     let mut oscquery_file = std::fs::File::create(&Path::new(&out_dir).join("oscquery.rs"))?;
 
+    {
+        let variants: Vec<DataType> = [
+            ("Bool", "bool", "bool"),
+            ("U8", "u8", "u8"),
+            ("USize", "usize", "usize"),
+            ("ISize", "isize", "isize"),
+            ("Float", "float", "::sched::Float"),
+
+            //complex types
+            ("ClockData", "clock_data", "::sched::binding::bpm::ClockData"),
+            ("TickResched", "tick_resched", "::sched::tick::TickResched"),
+            ("TickSched", "tick_sched", "::sched::tick::TickSched"),
+        ].iter().map(|d| DataType::new(d.0, d.1, d.2)).collect();
+
+        let access: Vec<DataAccess> = [
+            ("Get", "ParamBindingGet"),
+            ("Set", "ParamBindingSet"),
+            ("GetSet", "ParamBinding"),
+            ("KeyValueGet", "ParamBindingKeyValueGet"),
+            ("KeyValueSet", "ParamBindingKeyValueSet"),
+            ("KeyValueGetSet", "ParamBindingKeyValue"),
+        ].iter().map(|a| DataAccess::new(a.0, a.1)).collect();
+
+        let mut froms = Vec::new();
+        for a in access.iter() {
+            let ename = a.enum_name.clone();
+            let tname = a.trait_name.clone();
+            let access_var = a.access_var.clone();
+
+            let mut entries = Vec::new();
+
+            for v in variants.iter() {
+                let n = v.var_name.clone();
+                let t = v.typ.clone();
+                let inner = quote! { Arc<dyn #tname<#t>> };
+                entries.push(quote! { #n(#inner) });
+                froms.push(quote! {
+                    impl From<#inner> for ParamDataAccess {
+                        fn from(param: #inner) -> Self {
+                            Self::#access_var(#ename::#n(param))
+                        }
+                    }
+                });
+            }
+            params_file.write_all(
+                quote! {
+                    pub enum #ename {
+                        #(#entries),*
+                    }
+                }
+                .to_string()
+                .as_bytes(),
+            )?;
+        }
+        params_file.write_all(
+            quote! {
+                #(#froms)*
+            }
+            .to_string()
+            .as_bytes(),
+        )?;
+    }
+
     //(enum Varaiant Name, str for function naming, actual type name)
     let variants = [
         ("Bool", "bool", "bool"),
@@ -19,6 +116,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("USize", "usize", "usize"),
         ("ISize", "isize", "isize"),
         ("Float", "float", "Float"),
+
+        //complex types
         ("ClockData", "clock_data", "ClockData"),
         ("TickResched", "tick_resched", "TickResched"),
         ("TickSched", "tick_sched", "TickSched"),
@@ -39,13 +138,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         for v in variants.iter() {
             let i = format_ident!("{}", v.0);
-            let t = format_ident!("{}", v.2);
+            let t: syn::Type = syn::parse_str( v.2 ).unwrap();
 
             let g = format_ident!("{}Get", v.0);
             let s = format_ident!("{}Set", v.0);
             let gs = format_ident!("{}GetSet", v.0);
 
-            let data_type = format_ident!("{}", v.2);
+            let data_type = t.clone();
             let tname = v.2;
 
             {
@@ -230,20 +329,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let get_ident = format_ident!("as_{}_get", fname);
             let set_ident = format_ident!("as_{}_set", fname);
-            let type_ident = format_ident!("{}", tname);
+            let t: syn::Type = syn::parse_str( tname ).unwrap();
             let g = format_ident!("{}Get", var);
             let s = format_ident!("{}Set", var);
             let gs = format_ident!("{}GetSet", var);
 
             binding_typed_getset.push(quote! {
-                pub fn #get_ident(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#type_ident>>> {
+                pub fn #get_ident(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#t>>> {
                     match &self.binding {
                         Access::#g(m) => Some(m.clone()),
                         Access::#gs(m) => Some(m.clone() as _),
                         _ => None
                     }
                 }
-                pub fn #set_ident(&self) -> Option<std::sync::Arc<dyn ParamBindingSet<#type_ident>>> {
+                pub fn #set_ident(&self) -> Option<std::sync::Arc<dyn ParamBindingSet<#t>>> {
                     match &self.binding {
                         Access::#s(m) => Some(m.clone()),
                         Access::#gs(m) => Some(m.clone() as _),
@@ -785,7 +884,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut entries = Vec::new();
 
         for v in variants.iter() {
-            let data_type = format_ident!("{}", v.2);
+            let data_type: syn::Type = syn::parse_str( v.2 ).unwrap();
             let tname = v.2;
 
             let cname = format!("const::<{}>", tname);

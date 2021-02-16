@@ -15,6 +15,20 @@ use std::{
     sync::Arc,
 };
 
+use sched::binding::{
+    ParamBinding, ParamBindingGet, ParamBindingKeyValue, ParamBindingKeyValueGet,
+    ParamBindingKeyValueSet, ParamBindingSet,
+};
+
+pub enum ParamDataAccess {
+    Get(ParamDataGet),
+    Set(ParamDataSet),
+    GetSet(ParamDataGetSet),
+    KeyValueGet(ParamDataKeyValueGet),
+    KeyValueSet(ParamDataKeyValueSet),
+    KeyValueGetSet(ParamDataKeyValueGetSet),
+}
+
 /// A trait to access an items parameters.
 pub trait ParamMapGet {
     /// Get a reference to the parameters for this object.
