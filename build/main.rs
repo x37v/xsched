@@ -15,6 +15,7 @@ struct DataAccess {
     pub enum_name: syn::Ident,
     pub trait_name: syn::Ident,
     pub access_var: syn::Ident,
+    pub access_name: &'static str,
     pub type_name_prefix: &'static str,
     pub type_name_suffix: &'static str,
 }
@@ -36,6 +37,7 @@ impl DataAccess {
             enum_name: format_ident!("ParamData{}", access_var),
             trait_name: format_ident!("{}", trait_name),
             access_var: format_ident!("{}", access_var),
+            access_name: if access_var.contains("GetSet") { "getset" } else if access_var.contains("Set") { "set" } else { "get" },
             type_name_prefix: if access_var.contains("KeyValue") { "KeyValue<" } else { "" },
             type_name_suffix: if access_var.contains("KeyValue") { ">" } else { "" },
         }
@@ -75,6 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut froms = Vec::new();
         let mut data_type_name = Vec::new();
+        let mut access_names = Vec::new();
         
         for a in access.iter() {
             let ename = a.enum_name.clone();
@@ -82,6 +85,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let access_var = a.access_var.clone();
 
             let mut entries = Vec::new();
+            let access_name = a.access_name;
+            access_names.push(quote! {
+                Self::#access_var(..) => &#access_name
+            });
 
             for v in variants.iter() {
                 let n = v.var_name.clone();
@@ -116,6 +123,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     pub fn data_type_name(&self) -> &'static str {
                         match self {
                             #(#data_type_name),*
+                        }
+                    }
+
+                    pub fn access_name(&self) -> &'static str {
+                        match self {
+                            #(#access_names),*
                         }
                     }
                 }

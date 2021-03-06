@@ -63,6 +63,17 @@ pub struct ParamHashMap {
     inner: HashMap<&'static str, ParamAccess>,
 }
 
+pub struct Param {
+    //a value to use only in the scheduler thread
+    data: ParamDataAccess,
+    //a value that you can safely get or set from non scheduler threads
+    shadow: Option<ParamDataAccess>,
+    //parameters that would alter this value
+    params: ParamHashMap,
+    uuid: uuid::Uuid,
+    type_name: &'static str,
+}
+
 impl ParamHashMap {
     /// See if the key exists in this map.
     pub fn contains_key(&self, key: &str) -> bool {
@@ -162,6 +173,66 @@ impl ParamAccess {
             set,
             binding: Default::default(),
         }
+    }
+}
+
+impl Param {
+    /// Create a new param instance.
+    pub fn new<P, D, S>(type_name: &'static str, data: D, params: P, shadow: Option<S>) -> Self
+    where
+        P: Into<ParamHashMap>,
+        D: Into<ParamDataAccess>,
+        S: Into<ParamDataAccess>,
+    {
+        let id = uuid::Uuid::new_v4();
+        Self::new_with_id(type_name, data, params, shadow, &id)
+    }
+
+    /// Create a new param instance, with the given id.
+    pub fn new_with_id<P, D, S>(
+        type_name: &'static str,
+        data: D,
+        params: P,
+        shadow: Option<S>,
+        id: &uuid::Uuid,
+    ) -> Self
+    where
+        P: Into<ParamHashMap>,
+        D: Into<ParamDataAccess>,
+        S: Into<ParamDataAccess>,
+    {
+        Self {
+            data: data.into(),
+            shadow: shadow.map(|s| s.into()),
+            params: params.into(),
+            uuid: id.clone(),
+            type_name,
+        }
+    }
+
+    /// Get the unique identifier for this param instance.
+    pub fn uuid(&self) -> uuid::Uuid {
+        self.uuid
+    }
+
+    /// Get the type name for this param instance, for example `&"cast"` or `&"const"`.
+    pub fn type_name(&self) -> &'static str {
+        self.type_name
+    }
+
+    /// Get the data for this param, to use in scheduler thread.
+    pub fn data(&self) -> &ParamDataAccess {
+        &self.data
+    }
+
+    /// Get the data type name for this param instance, for example `&"usize"` or `&"Float"`.
+    pub fn data_type_name(&self) -> &'static str {
+        self.data.data_type_name()
+    }
+
+    /// Get the shadow for this param, if there is one.
+    pub fn shadow(&self) -> &Option<ParamDataAccess> {
+        &self.shadow
     }
 }
 
