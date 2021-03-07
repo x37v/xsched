@@ -78,6 +78,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut froms = Vec::new();
         let mut data_type_name = Vec::new();
         let mut access_names = Vec::new();
+
+        let mut param_typed_getters = Vec::new();
         
         for a in access.iter() {
             let ename = a.enum_name.clone();
@@ -93,6 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for v in variants.iter() {
                 let n = v.var_name.clone();
                 let t = v.typ.clone();
+
                 let inner = quote! { Arc<dyn #tname<#t>> };
                 entries.push(quote! { #n(#inner) });
                 froms.push(quote! {
@@ -117,6 +120,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .as_bytes(),
             )?;
         }
+
+        for v in variants.iter() {
+            let t = v.typ.clone();
+
+            param_typed_getters.push(quote! {
+                impl AsParamGet<#t> for Param {
+                    fn as_get(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#t>>> {
+                        None
+                    }
+                }
+                impl AsParamSet<#t> for Param {
+                    fn as_set(&self) -> Option<::std::sync::Arc<dyn ParamBindingSet<#t>>> {
+                        None
+                    }
+                }
+                impl AsParamKeyValueGet<#t> for Param {
+                    fn as_key_value_get(&self) -> Option<::std::sync::Arc<dyn ParamBindingKeyValueGet<#t>>> {
+                        None
+                    }
+                }
+                impl AsParamKeyValueSet<#t> for Param {
+                    fn as_key_value_set(&self) -> Option<::std::sync::Arc<dyn ParamBindingKeyValueSet<#t>>> {
+                        None
+                    }
+                }
+            });
+        }
+
         params_file.write_all(
             quote! {
                 impl ParamDataAccess {
@@ -133,6 +164,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 #(#froms)*
+
+                #(#param_typed_getters)*
             }
             .to_string()
             .as_bytes(),

@@ -35,6 +35,22 @@ pub trait ParamMapGet {
     fn params(&self) -> &ParamHashMap;
 }
 
+pub trait AsParamGet<T> {
+    fn as_get(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<T>>>;
+}
+
+pub trait AsParamSet<T> {
+    fn as_set(&self) -> Option<::std::sync::Arc<dyn ParamBindingSet<T>>>;
+}
+
+pub trait AsParamKeyValueGet<T> {
+    fn as_key_value_get(&self) -> Option<::std::sync::Arc<dyn ParamBindingKeyValueGet<T>>>;
+}
+
+pub trait AsParamKeyValueSet<T> {
+    fn as_key_value_set(&self) -> Option<::std::sync::Arc<dyn ParamBindingKeyValueSet<T>>>;
+}
+
 /// Parameters with their access.
 pub enum ParamAccess {
     Get {
