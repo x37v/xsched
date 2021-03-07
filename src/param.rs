@@ -16,9 +16,16 @@ use std::{
 };
 
 use sched::binding::{
-    ParamBinding, ParamBindingGet, ParamBindingKeyValue, ParamBindingKeyValueGet,
-    ParamBindingKeyValueSet, ParamBindingSet,
+    ParamBindingGet, ParamBindingKeyValueGet, ParamBindingKeyValueSet, ParamBindingSet,
 };
+
+pub type ParamBindingGetSet<T> =
+    ::sched::binding::ParamBindingGetSet<T, Arc<dyn ::sched::binding::ParamBinding<T>>>;
+
+pub type ParamBindingKeyValueGetSet<T> = ::sched::binding::ParamBindingKeyValueGetSet<
+    T,
+    Arc<dyn ::sched::binding::ParamBindingKeyValue<T>>,
+>;
 
 pub enum ParamDataAccess {
     Get(ParamDataGet),

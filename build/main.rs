@@ -18,6 +18,7 @@ struct DataAccess {
     pub access_name: &'static str,
     pub type_name_prefix: &'static str,
     pub type_name_suffix: &'static str,
+    pub dynamic: bool
 }
 
 impl DataType {
@@ -32,7 +33,7 @@ impl DataType {
 }
 
 impl DataAccess {
-    pub fn new(access_var: &'static str, trait_name: &'static str) -> Self {
+    pub fn new(access_var: &'static str, trait_name: &'static str, dynamic: bool) -> Self {
         Self {
             enum_name: format_ident!("ParamData{}", access_var),
             trait_name: format_ident!("{}", trait_name),
@@ -40,6 +41,7 @@ impl DataAccess {
             access_name: if access_var.contains("GetSet") { "getset" } else if access_var.contains("Set") { "set" } else { "get" },
             type_name_prefix: if access_var.contains("KeyValue") { "KeyValue<" } else { "" },
             type_name_suffix: if access_var.contains("KeyValue") { ">" } else { "" },
+            dynamic
         }
     }
 }
@@ -67,13 +69,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ].iter().map(|d| DataType::new(d.0, d.1, d.2)).collect();
 
         let access: Vec<DataAccess> = [
-            ("Get", "ParamBindingGet"),
-            ("Set", "ParamBindingSet"),
-            ("GetSet", "ParamBinding"),
-            ("KeyValueGet", "ParamBindingKeyValueGet"),
-            ("KeyValueSet", "ParamBindingKeyValueSet"),
-            ("KeyValueGetSet", "ParamBindingKeyValue"),
-        ].iter().map(|a| DataAccess::new(a.0, a.1)).collect();
+            ("Get", "ParamBindingGet", true),
+            ("Set", "ParamBindingSet", true),
+            ("GetSet", "ParamBindingGetSet", false),
+            ("KeyValueGet", "ParamBindingKeyValueGet", true),
+            ("KeyValueSet", "ParamBindingKeyValueSet", true),
+            ("KeyValueGetSet", "ParamBindingKeyValueGetSet", false),
+        ].iter().map(|a| DataAccess::new(a.0, a.1, a.2)).collect();
 
         let mut froms = Vec::new();
         let mut data_type_name = Vec::new();
@@ -96,7 +98,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let n = v.var_name.clone();
                 let t = v.typ.clone();
 
-                let inner = quote! { Arc<dyn #tname<#t>> };
+                //probably a better way to do this
+                let inner = if a.dynamic {
+                    quote! { Arc<dyn #tname<#t>> }
+                } else {
+                    quote! { Arc<#tname<#t>> }
+                };
                 entries.push(quote! { #n(#inner) });
                 froms.push(quote! {
                     impl From<#inner> for ParamDataAccess {
@@ -123,26 +130,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         for v in variants.iter() {
             let t = v.typ.clone();
+            let ename = v.var_name.clone();
 
             param_typed_getters.push(quote! {
                 impl AsParamGet<#t> for Param {
                     fn as_get(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#t>>> {
-                        None
+                        match &self.data {
+                            ParamDataAccess::Get(ParamDataGet::#ename(d)) => Some(d.clone()),
+                            ParamDataAccess::GetSet(ParamDataGetSet::#ename(d)) => Some(d.clone() as _),
+                            _ => None
+                        }
                     }
                 }
                 impl AsParamSet<#t> for Param {
                     fn as_set(&self) -> Option<::std::sync::Arc<dyn ParamBindingSet<#t>>> {
-                        None
+                        match &self.data {
+                            ParamDataAccess::Set(ParamDataSet::#ename(d)) => Some(d.clone()),
+                            ParamDataAccess::GetSet(ParamDataGetSet::#ename(d)) => Some(d.clone() as _),
+                            _ => None
+                        }
                     }
                 }
                 impl AsParamKeyValueGet<#t> for Param {
                     fn as_key_value_get(&self) -> Option<::std::sync::Arc<dyn ParamBindingKeyValueGet<#t>>> {
-                        None
+                        match &self.data {
+                            ParamDataAccess::KeyValueGet(ParamDataKeyValueGet::#ename(d)) => Some(d.clone()),
+                            ParamDataAccess::KeyValueGetSet(ParamDataKeyValueGetSet::#ename(d)) => Some(d.clone() as _),
+                            _ => None
+                        }
                     }
                 }
                 impl AsParamKeyValueSet<#t> for Param {
                     fn as_key_value_set(&self) -> Option<::std::sync::Arc<dyn ParamBindingKeyValueSet<#t>>> {
-                        None
+                        match &self.data {
+                            ParamDataAccess::KeyValueSet(ParamDataKeyValueSet::#ename(d)) => Some(d.clone()),
+                            ParamDataAccess::KeyValueGetSet(ParamDataKeyValueGetSet::#ename(d)) => Some(d.clone() as _),
+                            _ => None
+                        }
                     }
                 }
             });
