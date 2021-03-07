@@ -386,7 +386,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let i = format_ident!("{}", var);
             try_bind_variants.push(quote! {
                 ParamAccess::Get { get: ParamGet::#i(p), binding: b } => {
-                    if let Some(g) = binding.#g() {
+                    if let Some(g) = binding.as_get() {
                         let mut l = b.lock();
                         p.bind(g);
                         l.replace(binding);
@@ -396,7 +396,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 ParamAccess::Set { set: ParamSet::#i(p), binding: b } => {
-                    if let Some(s) = binding.#s() {
+                    if let Some(s) = binding.as_set() {
                         let mut l = b.lock();
                         p.bind(s);
                         l.replace(binding);
@@ -452,7 +452,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         params_file.write_all(
             quote! {
                 impl ParamAccess {
-                    fn binding(&self) -> &Mutex<Option<Arc<Instance>>> {
+                    fn binding(&self) -> &Mutex<Option<Arc<Param>>> {
                         match self {
                             Self::Get { binding: b, .. } => b,
                             Self::Set { binding: b, .. } => b,
@@ -471,7 +471,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     /// attempt to bind.
-                    pub fn try_bind(&self, binding: Arc<Instance>) -> Result<(), BindingError> {
+                    pub fn try_bind(&self, binding: Arc<Param>) -> Result<(), BindingError> {
                         let b = match self {
                             #(#try_bind_variants)*
                         };
@@ -676,10 +676,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
 
+        /* TODO
         oscquery_file.write_all(
             quote! {
                 impl OSCQueryHandler {
-                    fn add_binding_value(&self, instance: &Arc<Instance>, handle: ::oscquery::root::NodeHandle) {
+                    fn add_binding_value(&self, instance: &Arc<Param>, handle: ::oscquery::root::NodeHandle) {
                         fn to_get<T>(weak: &Weak<dyn ::sched::binding::last::BindingLast<T>>) -> T 
                             where T: Default + Copy + Send + Sync
                         {
@@ -964,6 +965,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .to_string()
             .as_bytes(),
         )?;
+            */
     }
     
     //instance factory

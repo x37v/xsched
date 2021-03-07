@@ -1,6 +1,5 @@
 //! Parameters: named typed bindings.
 
-use crate::binding::Instance;
 use sched::{
     binding::{
         bpm::ClockData,
@@ -62,11 +61,11 @@ pub trait AsParamKeyValueSet<T> {
 pub enum ParamAccess {
     Get {
         get: ParamGet,
-        binding: Mutex<Option<Arc<Instance>>>,
+        binding: Mutex<Option<Arc<Param>>>,
     },
     Set {
         set: ParamSet,
-        binding: Mutex<Option<Arc<Instance>>>,
+        binding: Mutex<Option<Arc<Param>>>,
     },
 }
 
@@ -140,7 +139,7 @@ impl ParamHashMap {
         }
     }
 
-    pub fn unbind(&self, name: &str) -> Option<Arc<Instance>> {
+    pub fn unbind(&self, name: &str) -> Option<Arc<Param>> {
         if let Some(param) = self.inner.get(name) {
             match param {
                 ParamAccess::Get { get: g, binding: b } => {
@@ -160,7 +159,7 @@ impl ParamHashMap {
     }
 
     ///Bind the parameter with the give `name` to the given `binding`.
-    pub fn try_bind(&self, name: &str, binding: Arc<Instance>) -> Result<(), BindingError> {
+    pub fn try_bind(&self, name: &str, binding: Arc<Param>) -> Result<(), BindingError> {
         if let Some(param) = self.inner.get(name) {
             param.try_bind(binding)
         } else {
@@ -238,14 +237,19 @@ impl Param {
         self.uuid
     }
 
+    /// Get the data for this param, to use in scheduler thread.
+    pub fn data(&self) -> &ParamDataAccess {
+        &self.data
+    }
+
     /// Get the type name for this param instance, for example `&"cast"` or `&"const"`.
     pub fn type_name(&self) -> &'static str {
         self.type_name
     }
 
-    /// Get the data for this param, to use in scheduler thread.
-    pub fn data(&self) -> &ParamDataAccess {
-        &self.data
+    /// Get the access name for this param instance: `"get", "set" or "getset"`
+    pub fn access_name(&self) -> &'static str {
+        self.data.access_name()
     }
 
     /// Get the data type name for this param instance, for example `&"usize"` or `&"Float"`.
@@ -256,6 +260,12 @@ impl Param {
     /// Get the shadow for this param, if there is one.
     pub fn shadow(&self) -> &Option<ParamDataAccess> {
         &self.shadow
+    }
+}
+
+impl ParamMapGet for Param {
+    fn params(&self) -> &ParamHashMap {
+        &self.params
     }
 }
 

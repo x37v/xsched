@@ -1,7 +1,6 @@
 use crate::{
-    binding::{Access, Instance},
     graph::{children::Children, GraphItem},
-    param::ParamMapGet,
+    param::{Param, ParamDataAccess, ParamMapGet},
     sched::{EventQueue, QueueSource},
 };
 use oscquery::{
@@ -96,7 +95,7 @@ struct GraphChildrenTypeNameParamGet {
 }
 
 pub struct OSCQueryHandler {
-    bindings: std::sync::Mutex<HashMap<uuid::Uuid, Arc<Instance>>>,
+    bindings: std::sync::Mutex<HashMap<uuid::Uuid, Arc<Param>>>,
     graph: std::sync::Mutex<HashMap<uuid::Uuid, Arc<GraphItem>>>,
     command_sender: SyncSender<Command>,
     server: OscQueryServer,
@@ -159,7 +158,7 @@ impl ::oscquery::value::Get<String> for GraphChildrenTypeNameParamGet {
 impl OSCQueryHandler {
     pub fn new(
         queue_sources: Arc<dyn QueueSource>,
-        _bindings: HashMap<String, Arc<Instance>>,
+        _bindings: HashMap<String, Arc<Param>>,
         _graph: HashMap<String, GraphItem>,
     ) -> Result<Self, std::io::Error> {
         println!(
@@ -374,7 +373,7 @@ impl OSCQueryHandler {
         }
     }
 
-    pub fn add_binding(&self, binding: Arc<Instance>) {
+    pub fn add_binding(&self, binding: Arc<Param>) {
         if let Ok(mut guard) = self.bindings.lock() {
             guard.insert(binding.uuid(), binding.clone());
             let handle = self
@@ -385,7 +384,7 @@ impl OSCQueryHandler {
                 )
                 .unwrap();
             //value
-            self.add_binding_value(&binding, handle);
+            //TODO self.add_binding_value(&binding, handle);
             //type node
             {
                 let _ = self
@@ -505,6 +504,8 @@ impl OSCQueryHandler {
         args: JsonValue,
         params: &Option<HashMap<String, uuid::Uuid>>,
     ) {
+        /*
+         * TODO
         let uuid = uuid.map_or_else(|| uuid::Uuid::new_v4(), |u| u.clone());
         match crate::binding::factory::create_instance(&uuid, type_name, args) {
             Ok(inst) => {
@@ -518,6 +519,7 @@ impl OSCQueryHandler {
             }
             Err(e) => println!("error creating instance {}", e),
         }
+        */
     }
 
     fn graph_node_create(

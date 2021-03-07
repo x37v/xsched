@@ -1,6 +1,4 @@
-use xsched::{
-    binding::Instance, graph::GraphItem, jack::Jack, oscquery::OSCQueryHandler, sched::Sched,
-};
+use xsched::{graph::GraphItem, jack::Jack, oscquery::OSCQueryHandler, param::Param, sched::Sched};
 
 use std::{
     collections::HashMap,
@@ -21,7 +19,7 @@ fn main() -> Result<(), std::io::Error> {
         .expect("Error setting Ctrl-C handler");
     }
 
-    let bindings: HashMap<String, Arc<Instance>> = Default::default();
+    let bindings: HashMap<String, Arc<Param>> = Default::default();
     let graph: HashMap<String, GraphItem> = Default::default();
 
     let sched = Sched::new();
@@ -30,7 +28,7 @@ fn main() -> Result<(), std::io::Error> {
     let mut server = OSCQueryHandler::new(queue_sources, bindings, graph)?;
 
     /*
-    server.add_binding(Arc::new(Instance::new(
+    server.add_binding(Arc::new(Param::new(
         &"value",
         std::sync::atomic::AtomicUsize::new(2084),
         HashMap::new(),
@@ -48,27 +46,30 @@ fn main() -> Result<(), std::io::Error> {
     map.insert("left", ParamAccess::new_get(ParamGet::USize(lswap)));
     map.insert("right", ParamAccess::new_get(ParamGet::USize(rswap)));
 
-    server.add_binding(Arc::new(Instance::new(
+    server.add_binding(Arc::new(Param::new(
         &"max",
         Access::USizeGet(Arc::new(BindingLastGet::new(max))),
         map,
     )));
 
-    server.add_binding(Arc::new(Instance::new(
+    server.add_binding(Arc::new(Param::new(
         &"value",
         sched::binding::bpm::ClockData::default(),
         HashMap::new(),
     )));
 
-    server.add_binding(Arc::new(Instance::new(
+    server.add_binding(Arc::new(Param::new(
         &"value",
         sched::tick::TickResched::Relative(20),
         HashMap::new(),
     )));
     */
 
+    /*
+     * TODO
     let help = xsched::binding::factory::help().to_string();
     println!("instance help {}", help);
+    */
 
     while run.load(Ordering::Acquire) {
         server.process();
