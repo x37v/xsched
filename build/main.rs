@@ -8,7 +8,7 @@ struct DataType {
     pub var_name: syn::Ident,
     pub func_name: &'static str,
     pub typ: syn::Type,
-    pub type_name: String
+    pub type_name: String,
 }
 
 struct DataAccess {
@@ -493,7 +493,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     struct SimpBindingValue {
-        pub bind_prefix: &'static str,
+        pub variant_name: &'static str,
         pub osc_variant: &'static str,
         pub osc_type: &'static str,
         pub get_func: TokenStream,
@@ -505,7 +505,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     impl Default for SimpBindingValue {
         fn default() -> Self {
             Self {
-                bind_prefix: &"",
+                variant_name: &"",
                 osc_variant: &"",
                 osc_type: &"",
                 get_func: quote! { unimplemented!(); },
@@ -519,11 +519,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let simp = [
             SimpBindingValue {
-                bind_prefix: &"Bool",
+                variant_name: &"Bool",
                 osc_variant: &"Bool",
                 osc_type: &"bool",
                 get_func: quote! {
-                    g.upgrade().map_or(false, |g| g.last().unwrap_or(false))
+                    g.upgrade().map_or(false, |g| g.get())
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(v));
@@ -531,11 +531,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..Default::default()
             },
             SimpBindingValue {
-                bind_prefix: &"U8",
+                variant_name: &"U8",
                 osc_variant: &"Int",
                 osc_type: &"i32",
                 get_func: quote! {
-                    g.upgrade().map_or(0, |g| g.last().unwrap_or(0) as i32)
+                    g.upgrade().map_or(0, |g| g.get() as i32)
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(num::clamp(v, 0, 255) as u8));
@@ -549,11 +549,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..Default::default()
             },
             SimpBindingValue {
-                bind_prefix: &"USize",
+                variant_name: &"USize",
                 osc_variant: &"Long",
                 osc_type: &"i64",
                 get_func: quote! {
-                    g.upgrade().map_or(0i64, |g| g.last().unwrap_or(0usize) as i64)
+                    g.upgrade().map_or(0i64, |g| g.get() as i64)
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(std::cmp::max(v, 0i64) as usize));
@@ -567,11 +567,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..Default::default()
             },
             SimpBindingValue {
-                bind_prefix: &"ISize",
+                variant_name: &"ISize",
                 osc_variant: &"Long",
                 osc_type: &"i64",
                 get_func: quote! {
-                    g.upgrade().map_or(0i64, |g| g.last().unwrap_or(0) as i64)
+                    g.upgrade().map_or(0i64, |g| g.get() as i64)
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(v as isize));
@@ -579,11 +579,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..Default::default()
             },
             SimpBindingValue {
-                bind_prefix: &"Float",
+                variant_name: &"Float",
                 osc_variant: &"Double",
                 osc_type: &"f64",
                 get_func: quote! {
-                    g.upgrade().map_or(0.0, |g| g.last().unwrap_or(0.0))
+                    g.upgrade().map_or(0.0, |g| g.get())
                 },
                 set_func: quote! {
                     s.upgrade().map(|s| s.set(v));
@@ -594,17 +594,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut access_values = Vec::new();
         for v in simp.iter() {
+            let variant_name = format_ident!("{}", v.variant_name);
             let osc_variant = format_ident!("{}", v.osc_variant);
             let osc_type = format_ident!("{}", v.osc_type);
-            let g = format_ident!("{}Get", v.bind_prefix);
-            let s = format_ident!("{}Set", v.bind_prefix);
-            let gs = format_ident!("{}GetSet", v.bind_prefix);
             let gf = v.get_func.clone();
             let sf = v.set_func.clone();
             let clip = v.clip.clone().unwrap_or(quote! { Default::default() });
             let range = v.range.clone().unwrap_or(quote! { Default::default() });
             access_values.push(quote! {
-                Access::#g(g) => {
+                crate::param::ParamDataAccess::Get(crate::param::ParamDataGet::#variant_name(g)) => {
                     let g = Arc::downgrade(&g);
                     let _ = self.server.add_node(
                         oscquery::node::Get::new(
@@ -625,7 +623,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
             });
             access_values.push(quote! {
-                Access::#s(s) => {
+                crate::param::ParamDataAccess::Set(crate::param::ParamDataSet::#variant_name(s)) => {
                     let s = Arc::downgrade(&s);
                     let _ = self.server.add_node(
                         oscquery::node::Set::new(
@@ -647,9 +645,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
             });
             access_values.push(quote! {
-                Access::#gs(gs) => {
-                    let g = Arc::downgrade(&gs);
-                    let s = g.clone();
+                crate::param::ParamDataAccess::GetSet(crate::param::ParamDataGetSet::#variant_name(gs)) => {
+                    let g = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::ParamBindingGet<_>>;
+                    let s = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::ParamBindingSet<_>>;
                     let _ = self.server.add_node(
                         oscquery::node::GetSet::new(
                             name,
@@ -676,11 +674,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
 
-        /* TODO
         oscquery_file.write_all(
             quote! {
                 impl OSCQueryHandler {
-                    fn add_binding_value(&self, instance: &Arc<Param>, handle: ::oscquery::root::NodeHandle) {
+                    fn add_param_value(&self, shadow: &ParamDataAccess, handle: ::oscquery::root::NodeHandle) {
+
+                        /*
                         fn to_get<T>(weak: &Weak<dyn ::sched::binding::last::BindingLast<T>>) -> T 
                             where T: Default + Copy + Send + Sync
                         {
@@ -692,11 +691,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 "Relative",
                                 "ContextRelative"
                             ].iter().map(|s| s.to_string().into()).collect());
+                        */
 
                         let name = &"value";
                         let description: Option<&str> = Some(&"binding value");
-                        match instance.binding() {
+                        match shadow {
                             #(#access_values),*
+                            /*
                             Access::ClockDataGet(g) => {
                                 let g = Arc::downgrade(&g) as Weak<dyn ::sched::binding::last::BindingLast<ClockData>>;
                                 let bpmg = g.clone();
@@ -957,6 +958,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             Some(handle))
                                                 .unwrap();
                             }
+                        */
                             _ => ()
                         }
                     }
@@ -965,7 +967,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .to_string()
             .as_bytes(),
         )?;
-            */
     }
     
     //instance factory
