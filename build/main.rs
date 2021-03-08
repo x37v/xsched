@@ -53,29 +53,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut params_file = std::fs::File::create(&Path::new(&out_dir).join("param.rs"))?;
     let mut oscquery_file = std::fs::File::create(&Path::new(&out_dir).join("oscquery.rs"))?;
 
+    let variants: Vec<DataType> = [
+        ("Bool", "bool", "bool"),
+        ("U8", "u8", "u8"),
+        ("USize", "usize", "usize"),
+        ("ISize", "isize", "isize"),
+        ("Float", "float", "::sched::Float"),
+
+        //complex types
+        ("ClockData", "clock_data", "::sched::binding::bpm::ClockData"),
+        ("TickResched", "tick_resched", "::sched::tick::TickResched"),
+        ("TickSched", "tick_sched", "::sched::tick::TickSched"),
+    ].iter().map(|d| DataType::new(d.0, d.1, d.2)).collect();
+
+    let access: Vec<DataAccess> = [
+        ("Get", "ParamBindingGet", true),
+        ("Set", "ParamBindingSet", true),
+        ("GetSet", "ParamBindingGetSet", false),
+        ("KeyValueGet", "ParamBindingKeyValueGet", true),
+        ("KeyValueSet", "ParamBindingKeyValueSet", true),
+        ("KeyValueGetSet", "ParamBindingKeyValueGetSet", false),
+    ].iter().map(|a| DataAccess::new(a.0, a.1, a.2)).collect();
+
+    //build out Param
     {
-        let variants: Vec<DataType> = [
-            ("Bool", "bool", "bool"),
-            ("U8", "u8", "u8"),
-            ("USize", "usize", "usize"),
-            ("ISize", "isize", "isize"),
-            ("Float", "float", "::sched::Float"),
-
-            //complex types
-            ("ClockData", "clock_data", "::sched::binding::bpm::ClockData"),
-            ("TickResched", "tick_resched", "::sched::tick::TickResched"),
-            ("TickSched", "tick_sched", "::sched::tick::TickSched"),
-        ].iter().map(|d| DataType::new(d.0, d.1, d.2)).collect();
-
-        let access: Vec<DataAccess> = [
-            ("Get", "ParamBindingGet", true),
-            ("Set", "ParamBindingSet", true),
-            ("GetSet", "ParamBindingGetSet", false),
-            ("KeyValueGet", "ParamBindingKeyValueGet", true),
-            ("KeyValueSet", "ParamBindingKeyValueSet", true),
-            ("KeyValueGetSet", "ParamBindingKeyValueGetSet", false),
-        ].iter().map(|a| DataAccess::new(a.0, a.1, a.2)).collect();
-
         let mut froms = Vec::new();
         let mut data_type_name = Vec::new();
         let mut access_names = Vec::new();
@@ -195,117 +196,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?;
     }
 
-    //(enum Varaiant Name, str for function naming, actual type name)
-    let variants = [
-        ("Bool", "bool", "bool"),
-        ("U8", "u8", "u8"),
-        ("USize", "usize", "usize"),
-        ("ISize", "isize", "isize"),
-        ("Float", "float", "Float"),
-
-        //complex types
-        ("ClockData", "clock_data", "ClockData"),
-        ("TickResched", "tick_resched", "TickResched"),
-        ("TickSched", "tick_sched", "TickSched"),
-    ];
-
-    //build out Get, Set, GetSet, ParamGet and ParamSet
+    //build out ParamGet and ParamSet
     {
-        let mut access_variants = Vec::new();
-        let mut access_data_type_name = Vec::new();
-        let mut access_access_name = Vec::new();
-        let mut access_news = Vec::new();
-        let mut access_froms = Vec::new();
-
         let mut pget = Vec::new();
         let mut pset = Vec::new();
         let mut param_data_type_name = Vec::new();
         let mut unbind = Vec::new();
 
         for v in variants.iter() {
-            let i = format_ident!("{}", v.0);
-            let t: syn::Type = syn::parse_str( v.2 ).unwrap();
+            let i = v.var_name.clone();
+            let t = v.typ.clone();
+            let tname = v.type_name.clone();
 
-            let g = format_ident!("{}Get", v.0);
-            let s = format_ident!("{}Set", v.0);
-            let gs = format_ident!("{}GetSet", v.0);
-
-            let data_type = t.clone();
-            let tname = v.2;
-
-            {
-                let gnew = format_ident!("new_{}_get", v.1);
-                let gnew_doc = format!("Construct a new Get {} with the given binding.", tname);
-                let gnew_init = format_ident!("new_{}_get_init", v.1);
-                let gnew_init_doc = format!("Construct a new Get {} with the given binding, initializing the last value.", tname);
-                let snew = format_ident!("new_{}_set", v.1);
-                let snew_doc = format!("Construct a new Set {} with the given binding.", tname);
-                let gsnew = format_ident!("new_{}_get_set", v.1);
-                let gsnew_doc = format!("Construct a new GetSet {} with the given binding.", tname);
-                let gsnew_init = format_ident!("new_{}_get_set_init", v.1);
-                let gsnew_init_doc = format!("Construct a new GetSet {} with the given binding, initializing the last value.", tname);
-
-                access_news.push(quote! {
-                    #[doc = #gnew_doc]
-                    pub fn #gnew<B: ParamBindingGet<#data_type> + 'static>(binding: B) -> Self {
-                        Self::#g(Arc::new(BindingLastGet::new(binding)))
-                    }
-                    #[doc = #gnew_init_doc]
-                    pub fn #gnew_init<B: ParamBindingGet<#data_type> + 'static>(binding: B) -> Self {
-                        Self::#g(Arc::new(BindingLastGet::new_init(binding)))
-                    }
-                    #[doc = #snew_doc]
-                    pub fn #snew<B: ParamBindingSet<#data_type> + 'static>(binding: B) -> Self {
-                        Self::#s(Arc::new(BindingLastSet::new(binding)))
-                    }
-                    #[doc = #gsnew_doc]
-                    pub fn #gsnew<B: ParamBinding<#data_type> + 'static>(binding: B) -> Self {
-                        Self::#gs(Arc::new(BindingLastGetSet::new(binding)))
-                    }
-                    #[doc = #gsnew_init_doc]
-                    pub fn #gsnew_init<B: ParamBinding<#data_type> + 'static>(binding: B) -> Self {
-                        Self::#gs(Arc::new(BindingLastGetSet::new_init(binding)))
-                    }
-                });
-                access_froms.push(quote! {
-                    impl From<Arc<dyn ParamBindingGet<#data_type>>> for Access {
-                        fn from(binding: Arc<dyn ParamBindingGet<#data_type>>) -> Self {
-                            Self::#gnew_init(binding)
-                        }
-                    }
-                    impl From<Arc<dyn ParamBindingSet<#data_type>>> for Access {
-                        fn from(binding: Arc<dyn ParamBindingSet<#data_type>>) -> Self {
-                            Self::#snew(binding)
-                        }
-                    }
-                    impl From<Arc<dyn ParamBinding<#data_type>>> for Access {
-                        fn from(binding: Arc<dyn ParamBinding<#data_type>>) -> Self {
-                            Self::#gsnew_init(binding)
-                        }
-                    }
-                });
-            }
-
-            //build the variants
-            access_variants.push(quote! {
-                #g(Arc<BindingLastGet<#t>>),
-                #s(Arc<BindingLastSet<#t>>),
-                #gs(Arc<BindingLastGetSet<#t>>)
-            });
-
-            //get the data type name
-            access_data_type_name.push(quote! {
-                Self::#g(..) | Self::#s(..) | Self::#gs(..) => &#tname
-            });
             param_data_type_name.push(quote! {
                     Self::Get{ get : ParamGet::#i(..), .. } | Self::Set { set: ParamSet::#i(..), .. } => &#tname
                 });
-            //get the access name
-            access_access_name.push(quote! {
-                Self::#g(..) => &"get",
-                Self::#s(..) => &"set",
-                Self::#gs(..) => &"getset"
-            });
             pget.push(quote! {
                 #i(::std::sync::Arc<BindingSwapGet<#t>>)
             });
@@ -354,8 +259,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut binding_typed_getset = Vec::new();
 
         let mut try_bind_variants = Vec::new();
-        for (var, fname, tname) in variants.iter() {
-            let i = format_ident!("{}", var);
+        //for (var, fname, tname) in variants.iter() {
+        for v in variants.iter() {
+            let i = v.var_name.clone();
+            let fname = v.func_name.clone();
+            let t = v.typ.clone();
+
             try_bind_variants.push(quote! {
                 ParamAccess::Get { get: ParamGet::#i(p), binding: b } => {
                     if let Some(g) = binding.as_get() {
@@ -388,10 +297,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let get_ident = format_ident!("as_{}_get", fname);
             let set_ident = format_ident!("as_{}_set", fname);
-            let t: syn::Type = syn::parse_str( tname ).unwrap();
-            let g = format_ident!("{}Get", var);
-            let s = format_ident!("{}Set", var);
-            let gs = format_ident!("{}GetSet", var);
+            let g = format_ident!("{}Get", i);
+            let s = format_ident!("{}Set", i);
+            let gs = format_ident!("{}GetSet", i);
 
             binding_typed_getset.push(quote! {
                 pub fn #get_ident(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#t>>> {
@@ -933,8 +841,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut entries = Vec::new();
 
         for v in variants.iter() {
-            let data_type: syn::Type = syn::parse_str( v.2 ).unwrap();
-            let tname = v.2;
+            let data_type = v.typ.clone();
+            let tname = v.type_name.clone();
 
             let cname = format!("const::<{}>", tname);
             let cdesc = format!("Constant {} value", tname);
@@ -995,8 +903,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 lazy_static::lazy_static! {
                     static ref PARAM_FACTORY_HASH: HashMap<&'static str, ParamFactItem> = {
                         let mut m = HashMap::new();
-                        #(#entries)*
-                        m
+                        #(#entries)* m
                     };
                 }
             }
