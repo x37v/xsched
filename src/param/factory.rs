@@ -4,9 +4,7 @@ use crate::{
 };
 use sched::{
     atomic::Atomic,
-    binding::{bpm::ClockData, ParamBinding, ParamBindingGet},
-    tick::{TickResched, TickSched},
-    Float,
+    binding::{ParamBinding, ParamBindingGet},
 };
 use serde::Serialize;
 use serde_json::value::Value as JsonValue;

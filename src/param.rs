@@ -1,13 +1,8 @@
 //! Parameters: named typed bindings.
 
 use sched::{
-    binding::{
-        bpm::ClockData,
-        swap::{BindingSwapGet, BindingSwapSet},
-    },
+    binding::swap::{BindingSwapGet, BindingSwapSet},
     mutex::Mutex,
-    tick::{TickResched, TickSched},
-    Float,
 };
 use std::{
     collections::{hash_map::Keys, HashMap},
