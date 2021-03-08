@@ -1,4 +1,3 @@
-//pub mod binding;
 pub mod error;
 pub mod graph;
 pub mod jack;
