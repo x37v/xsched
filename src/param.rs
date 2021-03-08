@@ -202,32 +202,35 @@ impl ParamAccess {
 
 impl Param {
     /// Create a new param instance.
-    pub fn new<P, D, S>(type_name: &'static str, data: D, params: P, shadow: Option<S>) -> Self
+    pub fn new<P, D>(
+        type_name: &'static str,
+        data: D,
+        params: P,
+        shadow: Option<ParamDataAccess>,
+    ) -> Self
     where
         P: Into<ParamHashMap>,
         D: Into<ParamDataAccess>,
-        S: Into<ParamDataAccess>,
     {
         let id = uuid::Uuid::new_v4();
         Self::new_with_id(type_name, data, params, shadow, &id)
     }
 
     /// Create a new param instance, with the given id.
-    pub fn new_with_id<P, D, S>(
+    pub fn new_with_id<P, D>(
         type_name: &'static str,
         data: D,
         params: P,
-        shadow: Option<S>,
+        shadow: Option<ParamDataAccess>,
         id: &uuid::Uuid,
     ) -> Self
     where
         P: Into<ParamHashMap>,
         D: Into<ParamDataAccess>,
-        S: Into<ParamDataAccess>,
     {
         Self {
             data: data.into(),
-            shadow: shadow.map(|s| s.into()),
+            shadow,
             params: params.into(),
             uuid: id.clone(),
             type_name,
@@ -273,3 +276,148 @@ impl ParamMapGet for Param {
 
 //pull in the codegen
 include!(concat!(env!("OUT_DIR"), "/param.rs"));
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ::sched::binding::ParamBindingGet;
+    use std::collections::HashMap;
+    use std::sync::atomic::AtomicUsize;
+
+    #[test]
+    fn can_create() {
+        let g = Arc::new(Param::new(
+            &"value",
+            Arc::new(AtomicUsize::new(0)) as Arc<dyn ParamBindingGet<usize>>,
+            HashMap::new(),
+            None,
+        ));
+        assert_eq!("get", g.access_name());
+        assert_eq!("value", g.type_name());
+        assert_eq!("usize", g.data_type_name());
+
+        let a = Arc::new(AtomicUsize::new(0));
+        let s = Arc::new(Param::new(
+            &"value",
+            Arc::new(ParamBindingGetSet::new(a.clone())),
+            HashMap::new(),
+            None,
+        ));
+        assert_eq!("getset", s.access_name());
+        assert_eq!("usize", s.data_type_name());
+
+        assert_eq!(
+            Err(BindingError::KeyMissing),
+            s.params().try_bind(&"soda", g.clone())
+        );
+        assert_eq!(
+            Err(BindingError::KeyMissing),
+            g.params().try_bind(&"foo", s.clone())
+        );
+        assert_eq!(None, s.params().uuid(&"soda"));
+        assert_eq!(None, s.params().uuid(&"foo"));
+
+        let lswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
+        let rswap = Arc::new(sched::binding::swap::BindingSwapGet::default());
+        let max = Arc::new(sched::binding::ops::GetBinaryOp::new(
+            core::cmp::max,
+            lswap.clone() as Arc<dyn ParamBindingGet<usize>>,
+            rswap.clone() as Arc<dyn ParamBindingGet<usize>>,
+        ));
+
+        let mut map = HashMap::new();
+        map.insert("left", ParamAccess::new_get(ParamGet::USize(lswap)));
+        map.insert("right", ParamAccess::new_get(ParamGet::USize(rswap)));
+
+        let max = Param::new(&"value", max as Arc<dyn ParamBindingGet<usize>>, map, None);
+        assert_eq!(None, s.params().uuid(&"left"));
+        assert_eq!(None, s.params().uuid(&"right"));
+        assert_eq!(None, s.params().uuid(&"bill"));
+
+        assert_eq!(Some("get"), max.params().access_name("left"));
+        assert_eq!(Some("get"), max.params().access_name("right"));
+        assert_eq!(None, max.params().access_name("bill"));
+
+        assert_eq!(Some("usize"), max.params().data_type_name("left"));
+        assert_eq!(Some("usize"), max.params().data_type_name("right"));
+
+        assert_eq!(None, max.params().data_type_name("bill"));
+        assert_eq!(None, max.params().data_type_name("bill"));
+
+        let keys: Vec<&'static str> = max.params().keys().into_iter().map(|k| k.clone()).collect();
+
+        assert_eq!(2, keys.len());
+        assert!(keys.contains(&"left"));
+        assert!(keys.contains(&"right"));
+
+        assert_eq!("get", max.access_name());
+        assert_eq!("usize", max.data_type_name());
+
+        let get_max: Option<Arc<dyn ParamBindingGet<usize>>> = max.as_get();
+        let get_bool: Option<Arc<dyn ParamBindingGet<bool>>> = max.as_get();
+        assert!(get_bool.is_none());
+        assert!(get_max.is_some());
+
+        let get_max = get_max.unwrap();
+        assert_eq!(0, get_max.get());
+
+        let left = Arc::new(AtomicUsize::new(1));
+        let left = Arc::new(Param::new(
+            &"value",
+            Arc::new(ParamBindingGetSet::new(left.clone())),
+            HashMap::new(),
+            None,
+        ));
+        assert_eq!(None, max.params().uuid(&"left"));
+        assert!(max.params().try_bind(&"left", left.clone()).is_ok());
+        assert_eq!(Some(left.uuid()), max.params().uuid(&"left"));
+        assert_eq!(1, get_max.get());
+
+        let right = Arc::new(AtomicUsize::new(2));
+        let right = Arc::new(Param::new(
+            &"value",
+            right.clone() as Arc<dyn ParamBindingGet<usize>>,
+            HashMap::new(),
+            None,
+        ));
+        assert_eq!(None, max.params().uuid(&"right"));
+        assert!(max.params().try_bind(&"right", right.clone()).is_ok());
+        assert_eq!(Some(left.uuid()), max.params().uuid(&"left"));
+        assert_eq!(Some(right.uuid()), max.params().uuid(&"right"));
+        assert_eq!(2, get_max.get());
+        max.params().unbind(&"right");
+        assert_eq!(None, max.params().uuid(&"right"));
+        assert_eq!(1, get_max.get());
+
+        assert!(max.params().try_bind(&"right", left.clone()).is_ok());
+        assert!(max.params().try_bind(&"left", right.clone()).is_ok());
+        assert_eq!(Some(left.uuid()), max.params().uuid(&"right"));
+        assert_eq!(Some(right.uuid()), max.params().uuid(&"left"));
+        assert_eq!(2, get_max.get());
+
+        assert!(max.params().try_bind(&"left", left.clone()).is_ok());
+        assert!(max.params().try_bind(&"right", right.clone()).is_ok());
+        assert_eq!(Some(left.uuid()), max.params().uuid(&"left"));
+        assert_eq!(Some(right.uuid()), max.params().uuid(&"right"));
+        max.params().unbind(&"left");
+        assert_eq!(Some(right.uuid()), max.params().uuid(&"right"));
+        assert_eq!(None, max.params().uuid(&"left"));
+        assert_eq!(2, get_max.get());
+
+        max.params().unbind(&"right");
+        assert_eq!(None, max.params().uuid(&"right"));
+        assert_eq!(None, max.params().uuid(&"left"));
+        assert_eq!(0, get_max.get());
+
+        assert!(max.params().try_bind(&"left", left.clone()).is_ok());
+        assert!(max.params().try_bind(&"right", right.clone()).is_ok());
+        assert_eq!(Some(left.uuid()), max.params().uuid(&"left"));
+        assert_eq!(Some(right.uuid()), max.params().uuid(&"right"));
+        assert_eq!(2, get_max.get());
+
+        let sleft = AsParamSet::<usize>::as_set(left.as_ref());
+        assert!(sleft.is_some());
+        sleft.unwrap().set(2084);
+        assert_eq!(2084, get_max.get());
+    }
+}
