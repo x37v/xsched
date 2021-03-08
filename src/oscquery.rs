@@ -33,7 +33,7 @@ use serde_json::value::Value as JsonValue;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 enum ParamOwner {
-    Binding(uuid::Uuid),
+    Param(uuid::Uuid),
     GraphItem(uuid::Uuid),
 }
 
@@ -91,12 +91,12 @@ struct GraphChildrenTypeNameParamGet {
 }
 
 pub struct OSCQueryHandler {
-    bindings: std::sync::Mutex<HashMap<uuid::Uuid, Arc<Param>>>,
+    params: std::sync::Mutex<HashMap<uuid::Uuid, Arc<Param>>>,
     graph: std::sync::Mutex<HashMap<uuid::Uuid, Arc<GraphItem>>>,
     command_sender: SyncSender<Command>,
     server: OscQueryServer,
     _xsched_handle: NodeHandle,
-    bindings_handle: NodeHandle,
+    params_handle: NodeHandle,
     graph_handle: NodeHandle,
     command_receiver: Receiver<Command>,
     sched_queue: EventQueue,
@@ -154,13 +154,13 @@ impl ::oscquery::value::Get<String> for GraphChildrenTypeNameParamGet {
 impl OSCQueryHandler {
     pub fn new(
         queue_sources: Arc<dyn QueueSource>,
-        _bindings: HashMap<String, Arc<Param>>,
+        _params: HashMap<String, Arc<Param>>,
         _graph: HashMap<String, GraphItem>,
     ) -> Result<Self, std::io::Error> {
         println!(
             "example command {}",
             serde_json::to_string(&Command::ParamBind {
-                owner: ParamOwner::Binding(uuid::Uuid::new_v4()),
+                owner: ParamOwner::Param(uuid::Uuid::new_v4()),
                 param_name: "toast".into(),
                 param_id: uuid::Uuid::new_v4(),
             })
@@ -227,17 +227,16 @@ impl OSCQueryHandler {
                 .unwrap();
         }
 
-        let bindings_base = server
+        let params_base = server
             .add_node(
-                oscquery::node::Container::new("bindings", Some("xsched scheduler bindings"))
-                    .unwrap(),
+                oscquery::node::Container::new("params", Some("xsched scheduler params")).unwrap(),
                 Some(xsched_handle),
             )
             .unwrap();
-        let bindings_handle = server
+        let params_handle = server
             .add_node(
-                oscquery::node::Container::new("uuids", Some("bindings by uuid")).unwrap(),
-                Some(bindings_base),
+                oscquery::node::Container::new("uuids", Some("params by uuid")).unwrap(),
+                Some(params_base),
             )
             .unwrap();
 
@@ -260,9 +259,9 @@ impl OSCQueryHandler {
         let s = Self {
             server,
             _xsched_handle: xsched_handle,
-            bindings_handle,
+            params_handle,
             graph_handle,
-            bindings: Default::default(),
+            params: Default::default(),
             graph: Default::default(),
             command_sender,
             command_receiver,
@@ -270,7 +269,7 @@ impl OSCQueryHandler {
             queue_sources,
         };
 
-        //TODO add bindings and graph
+        //TODO add params and graph
         Ok(s)
     }
 
@@ -369,18 +368,18 @@ impl OSCQueryHandler {
         }
     }
 
-    pub fn add_binding(&self, binding: Arc<Param>) {
-        if let Ok(mut guard) = self.bindings.lock() {
-            guard.insert(binding.uuid(), binding.clone());
+    pub fn add_param(&self, param: Arc<Param>) {
+        if let Ok(mut guard) = self.params.lock() {
+            guard.insert(param.uuid(), param.clone());
             let handle = self
                 .server
                 .add_node(
-                    oscquery::node::Container::new(map_uuid(&binding.uuid()), None).unwrap(),
-                    Some(self.bindings_handle),
+                    oscquery::node::Container::new(map_uuid(&param.uuid()), None).unwrap(),
+                    Some(self.params_handle),
                 )
                 .unwrap();
             //value
-            if let Some(shadow) = binding.shadow() {
+            if let Some(shadow) = param.shadow() {
                 self.add_param_value(&shadow, handle);
             }
             //type node
@@ -392,9 +391,9 @@ impl OSCQueryHandler {
                             "type",
                             Some("type_name, access_name, data_type_name"),
                             vec![
-                                binding.type_name(),
-                                binding.access_name(),
-                                binding.data_type_name(),
+                                param.type_name(),
+                                param.access_name(),
+                                param.data_type_name(),
                             ]
                             .into_iter()
                             .map(|v| ParamGet::String(ValueBuilder::new(Arc::new(v) as _).build())),
@@ -405,8 +404,8 @@ impl OSCQueryHandler {
                     .unwrap();
             }
             //parameters
-            if !binding.params().is_empty() {
-                self.add_params(binding.clone() as _, handle.clone());
+            if !param.params().is_empty() {
+                self.add_params(param.clone() as _, handle.clone());
             }
         }
     }
@@ -431,7 +430,7 @@ impl OSCQueryHandler {
                 .add_node(
                     ::oscquery::node::Get::new(
                         key,
-                        Some("binding_id"),
+                        Some("param_id"),
                         vec![::oscquery::param::ParamGet::String(
                             ValueBuilder::new(wrapper as _).build(),
                         )],
@@ -444,12 +443,12 @@ impl OSCQueryHandler {
     }
 
     fn param_unbind(&self, owner: &ParamOwner, param_name: &str) {
-        if let Ok(bindings_guard) = self.bindings.lock() {
+        if let Ok(params_guard) = self.params.lock() {
             match owner {
                 //bind parameters
-                ParamOwner::Binding(binding_id) => {
-                    if let Some(binding) = bindings_guard.get(&binding_id) {
-                        binding.params().unbind(param_name);
+                ParamOwner::Param(param_id) => {
+                    if let Some(param) = params_guard.get(&param_id) {
+                        param.params().unbind(param_name);
                         //get handle and self.server.trigger(handle);
                     }
                 }
@@ -466,15 +465,15 @@ impl OSCQueryHandler {
     }
 
     fn param_bind(&self, owner: &ParamOwner, param_name: &str, param_id: &uuid::Uuid) {
-        if let Ok(bindings_guard) = self.bindings.lock() {
+        if let Ok(params_guard) = self.params.lock() {
             match owner {
                 //bind parameters
-                ParamOwner::Binding(binding_id) => {
-                    if let Some(binding) = bindings_guard.get(&binding_id) {
+                ParamOwner::Param(param_id) => {
+                    if let Some(parent) = params_guard.get(&param_id) {
                         //TODO cycle detection
                         //TODO error handling
-                        if let Some(param) = bindings_guard.get(&param_id) {
-                            let _r = binding.params().try_bind(param_name, param.clone());
+                        if let Some(param) = params_guard.get(&param_id) {
+                            let _r = parent.params().try_bind(param_name, param.clone());
                             //get handle and self.server.trigger(handle);
                         }
                     }
@@ -484,7 +483,7 @@ impl OSCQueryHandler {
                         if let Some(item) = graph_guard.get(&item_id) {
                             //TODO cycle detection
                             //TODO error handling
-                            if let Some(param) = bindings_guard.get(&param_id) {
+                            if let Some(param) = params_guard.get(&param_id) {
                                 let _r = item.params().try_bind(param_name, param.clone());
                                 //get handle and self.server.trigger(handle);
                             }
@@ -495,7 +494,7 @@ impl OSCQueryHandler {
         }
     }
 
-    fn binding_create(
+    fn param_create(
         &self,
         uuid: &Option<uuid::Uuid>,
         type_name: &str,
@@ -505,9 +504,9 @@ impl OSCQueryHandler {
         let uuid = uuid.map_or_else(|| uuid::Uuid::new_v4(), |u| u.clone());
         match crate::param::factory::create_param(&uuid, type_name, args) {
             Ok(inst) => {
-                self.add_binding(Arc::new(inst));
+                self.add_param(Arc::new(inst));
                 if let Some(params) = params {
-                    let owner = ParamOwner::Binding(uuid);
+                    let owner = ParamOwner::Param(uuid);
                     for (name, id) in params.iter() {
                         self.param_bind(&owner, name, id);
                     }
@@ -606,7 +605,7 @@ impl OSCQueryHandler {
                 type_name,
                 args,
                 params,
-            } => self.binding_create(id, type_name, args.clone(), params),
+            } => self.param_create(id, type_name, args.clone(), params),
             Command::GraphItemCreate {
                 id,
                 type_name,
