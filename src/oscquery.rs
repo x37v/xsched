@@ -12,11 +12,7 @@ use oscquery::{
     OscQueryServer,
 };
 use sched::{
-    binding::{
-        bpm::{Clock, ClockData},
-        last::BindingLast,
-        ParamBindingSet,
-    },
+    binding::bpm::{Clock, ClockData},
     graph::GraphNodeContainer,
     pqueue::TickPriorityEnqueue,
     tick::TickResched,
@@ -384,7 +380,9 @@ impl OSCQueryHandler {
                 )
                 .unwrap();
             //value
-            //TODO self.add_binding_value(&binding, handle);
+            if let Some(shadow) = binding.shadow() {
+                self.add_param_value(&shadow, handle);
+            }
             //type node
             {
                 let _ = self

@@ -679,27 +679,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 impl OSCQueryHandler {
                     fn add_param_value(&self, shadow: &ParamDataAccess, handle: ::oscquery::root::NodeHandle) {
 
-                        /*
-                        fn to_get<T>(weak: &Weak<dyn ::sched::binding::last::BindingLast<T>>) -> T 
+                        fn to_get<T>(weak: &Weak<dyn ::sched::binding::ParamBindingGet<T>>) -> T 
                             where T: Default + Copy + Send + Sync
                         {
-                            weak.upgrade().map_or(T::default(), |g| g.last().unwrap_or(T::default()))
+                            weak.upgrade().map_or(T::default(), |g| g.get())
                         }
+
                         let tick_resched_range = 
                             Range::Vals(vec![
                                 "None",
                                 "Relative",
                                 "ContextRelative"
                             ].iter().map(|s| s.to_string().into()).collect());
-                        */
 
                         let name = &"value";
                         let description: Option<&str> = Some(&"binding value");
                         match shadow {
                             #(#access_values),*
-                            /*
-                            Access::ClockDataGet(g) => {
-                                let g = Arc::downgrade(&g) as Weak<dyn ::sched::binding::last::BindingLast<ClockData>>;
+                            crate::param::ParamDataAccess::Get(crate::param::ParamDataGet::ClockData(g)) => {
+                                let g = Arc::downgrade(&g) as Weak<dyn ::sched::binding::ParamBindingGet<ClockData>>;
                                 let bpmg = g.clone();
                                 let ppqg = g.clone();
                                 let microg = g.clone();
@@ -738,8 +736,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             Some(handle),
                                             ).unwrap();
                             },
-                            Access::ClockDataSet(gs) => {
-                                let s = Arc::downgrade(&gs) as Weak<dyn ParamBindingSet<ClockData>>;
+                            crate::param::ParamDataAccess::Set(crate::param::ParamDataSet::ClockData(gs)) => {
+                                let s = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::ParamBindingSet<ClockData>>;
                                 let _ = self.server.add_node(
                                     oscquery::node::Set::new(
                                         "value",
@@ -793,12 +791,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             Some(handle),
                                             ).unwrap();
                             },
-                            Access::ClockDataGetSet(gs) => {
-                                let s = Arc::downgrade(&gs) as Weak<dyn ParamBindingSet<ClockData>>;
-                                let bl = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::last::BindingLast<ClockData>>;
-                                let bpmg = bl.clone();
-                                let ppqg = bl.clone();
-                                let microg = bl.clone();
+                            crate::param::ParamDataAccess::GetSet(crate::param::ParamDataGetSet::ClockData(gs)) => {
+                                let s = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::ParamBindingSet<ClockData>>;
+                                let g = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::ParamBindingGet<ClockData>>;
+                                let bpmg = g.clone();
+                                let ppqg = g.clone();
+                                let microg = g.clone();
                                 let _ = self.server.add_node(
                                     oscquery::node::GetSet::new(
                                         "value",
@@ -840,7 +838,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                             //update all the clock data parameters and then set
                                                             let mut args = args.iter();
                                                             //by default, set to the last we had
-                                                            let mut data: ClockData = to_get::<ClockData>(&bl);
+                                                            let mut data: ClockData = to_get::<ClockData>(&g);
                                                             if let Some(::oscquery::osc::OscType::Double(v)) = args.next() {
                                                                 data.set_bpm(0f64.max(*v));
                                                                 if let Some(::oscquery::osc::OscType::Long(v)) = args.next() {
@@ -859,8 +857,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             Some(handle),
                                             ).unwrap();
                             },
-                            Access::TickReschedGet(g) => {
-                                let g = Arc::downgrade(&g) as Weak<dyn ::sched::binding::last::BindingLast<TickResched>>;
+                            crate::param::ParamDataAccess::Get(crate::param::ParamDataGet::TickResched(g)) => {
+                                let g = Arc::downgrade(&g) as Weak<dyn ::sched::binding::ParamBindingGet<TickResched>>;
                                 let gt = g.clone();
                                 let gv = g.clone();
                                 let _ = self.server.add_node(
@@ -895,9 +893,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             Some(handle),
                                             ).unwrap();
                             },
-                            Access::TickReschedGetSet(gs) => {
-                                let s = Arc::downgrade(&gs) as Weak<dyn ParamBindingSet<TickResched>>;
-                                let g = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::last::BindingLast<TickResched>>;
+                            crate::param::ParamDataAccess::GetSet(crate::param::ParamDataGetSet::TickResched(gs)) => {
+                                let s = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::ParamBindingSet<TickResched>>;
+                                let g = Arc::downgrade(&gs) as Weak<dyn ::sched::binding::ParamBindingGet<TickResched>>;
                                 let gt = g.clone();
                                 let gv = g.clone();
                                 let _ = self.server.add_node(
@@ -958,7 +956,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             Some(handle))
                                                 .unwrap();
                             }
-                        */
                             _ => ()
                         }
                     }
