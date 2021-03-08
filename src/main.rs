@@ -65,11 +65,8 @@ fn main() -> Result<(), std::io::Error> {
     )));
     */
 
-    /*
-     * TODO
-    let help = xsched::binding::factory::help().to_string();
-    println!("instance help {}", help);
-    */
+    let help = xsched::param::factory::help().to_string();
+    println!("param help {}", help);
 
     while run.load(Ordering::Acquire) {
         server.process();

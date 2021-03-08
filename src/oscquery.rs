@@ -56,7 +56,7 @@ enum Command {
         owner: ParamOwner,
         param_name: String,
     },
-    BindingCreate {
+    ParamCreate {
         id: Option<uuid::Uuid>,
         type_name: String,
         args: JsonValue,
@@ -502,10 +502,8 @@ impl OSCQueryHandler {
         args: JsonValue,
         params: &Option<HashMap<String, uuid::Uuid>>,
     ) {
-        /*
-         * TODO
         let uuid = uuid.map_or_else(|| uuid::Uuid::new_v4(), |u| u.clone());
-        match crate::binding::factory::create_instance(&uuid, type_name, args) {
+        match crate::param::factory::create_param(&uuid, type_name, args) {
             Ok(inst) => {
                 self.add_binding(Arc::new(inst));
                 if let Some(params) = params {
@@ -517,7 +515,6 @@ impl OSCQueryHandler {
             }
             Err(e) => println!("error creating instance {}", e),
         }
-        */
     }
 
     fn graph_node_create(
@@ -604,7 +601,7 @@ impl OSCQueryHandler {
             Command::ParamUnbind { owner, param_name } => {
                 self.param_unbind(owner, param_name.as_str())
             }
-            Command::BindingCreate {
+            Command::ParamCreate {
                 id,
                 type_name,
                 args,

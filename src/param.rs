@@ -18,6 +18,8 @@ use sched::binding::{
     ParamBindingGet, ParamBindingKeyValueGet, ParamBindingKeyValueSet, ParamBindingSet,
 };
 
+pub mod factory;
+
 pub type ParamBindingGetSet<T> =
     ::sched::binding::ParamBindingGetSet<T, Arc<dyn ::sched::binding::ParamBinding<T>>>;
 

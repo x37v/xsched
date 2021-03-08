@@ -49,7 +49,6 @@ impl DataAccess {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = env::var_os("OUT_DIR").unwrap();
 
-    let mut bindings_file = std::fs::File::create(&Path::new(&out_dir).join("binding.rs"))?;
     let mut instance_factory_file = std::fs::File::create(&Path::new(&out_dir).join("instance_factory.rs"))?;
     let mut params_file = std::fs::File::create(&Path::new(&out_dir).join("param.rs"))?;
     let mut oscquery_file = std::fs::File::create(&Path::new(&out_dir).join("oscquery.rs"))?;
@@ -319,31 +318,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
         }
-        bindings_file.write_all(
-            quote! {
-                /// Operations/data and their access.
-                pub enum Access {
-                    #(#access_variants),*
-                }
-                impl Access {
-                    pub fn access_name(&self) -> &'static str {
-                        match self {
-                            #(#access_access_name),*
-                        }
-                    }
-                    pub fn data_type_name(&self) -> &'static str {
-                        match self {
-                            #(#access_data_type_name),*
-                        }
-                    }
-                    #(#access_news)*
-                }
-
-                #(#access_froms)*
-            }
-            .to_string()
-            .as_bytes(),
-        )?;
         params_file.write_all(
             quote! {
                 /// Parameters that you can get values from.
@@ -381,8 +355,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut try_bind_variants = Vec::new();
         for (var, fname, tname) in variants.iter() {
-            let g = format_ident!("as_{}_get", fname);
-            let s = format_ident!("as_{}_set", fname);
             let i = format_ident!("{}", var);
             try_bind_variants.push(quote! {
                 ParamAccess::Get { get: ParamGet::#i(p), binding: b } => {
@@ -438,16 +410,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
         }
-
-        bindings_file.write_all(
-            quote! {
-                impl Instance {
-                    #(#binding_typed_getset)*
-                }
-            }
-            .to_string()
-            .as_bytes(),
-        )?;
 
         params_file.write_all(
             quote! {
@@ -985,12 +947,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 quote! {
                     let ex: #data_type = Default::default();
 
-                    let f: Box<InstDataFn> = Box::new(|arg| {
+                    //constant
+                    let f: Box<ParamDataFn> = Box::new(|arg| {
                         let v: Result<#data_type, _> = serde_json::from_value(arg);
                         if let Ok(v) = v {
+                            let g = Arc::new(v) as Arc<dyn ParamBindingGet<#data_type>>;
                             Ok(
                                 (
-                                    (Arc::new(v) as Arc<dyn ParamBindingGet<#data_type>>).into(),
+                                    g.clone().into(),
+                                    Some(g.into()), //shadow for a const is just the same access
                                     Default::default()
                                 )
                             )
@@ -999,14 +964,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     });
                     m.insert(#cname, 
-                        InstFactItem::new(f, #cdesc, Some(serde_json::to_string(&ex).unwrap())
+                        ParamFactItem::new(f, #cdesc, Some(serde_json::to_string(&ex).unwrap())
                     ));
-                    let f: Box<InstDataFn> = Box::new(|arg| {
+
+                    //value
+                    let f: Box<ParamDataFn> = Box::new(|arg| {
                         let v: Result<#data_type, _> = serde_json::from_value(arg);
                         if let Ok(v) = v {
+                            let gs = Arc::new(::sched::binding::ParamBindingGetSet::new(Arc::new(Atomic::new(v)) as Arc<dyn ParamBinding<#data_type>>));
                             Ok(
                                 (
-                                    (Arc::new(Atomic::new(v)) as Arc<dyn ParamBinding<#data_type>>).into(),
+                                    gs.clone().into(),
+                                    Some(gs.into()), //TODO shadow access should be queued
                                     Default::default()
                                 )
                             )
@@ -1015,7 +984,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     });
                     m.insert(#mname, 
-                        InstFactItem::new(f, #mdesc, Some(serde_json::to_string(&ex).unwrap())
+                        ParamFactItem::new(f, #mdesc, Some(serde_json::to_string(&ex).unwrap())
                     ));
                 }
             );
@@ -1024,7 +993,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         instance_factory_file.write_all(
             quote! {
                 lazy_static::lazy_static! {
-                    static ref INSTANCE_FACTORY_HASH: HashMap<&'static str, InstFactItem> = {
+                    static ref PARAM_FACTORY_HASH: HashMap<&'static str, ParamFactItem> = {
                         let mut m = HashMap::new();
                         #(#entries)*
                         m

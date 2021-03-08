@@ -1,7 +1,6 @@
 use crate::{
-    binding::{Access, Instance},
     error::CreateError,
-    param::ParamHashMap,
+    param::{Param, ParamDataAccess, ParamHashMap},
 };
 use sched::{
     atomic::Atomic,
@@ -13,26 +12,27 @@ use serde::Serialize;
 use serde_json::value::Value as JsonValue;
 use std::{collections::HashMap, sync::Arc};
 
-/// Result from attempt to create an instance.
-pub type InstDataResult = Result<(Access, ParamHashMap), CreateError>;
+/// Result from attempt to create a param.
+pub type ParamDataResult =
+    Result<(ParamDataAccess, Option<ParamDataAccess>, ParamHashMap), CreateError>;
 
-/// Instance Factory Function type.
-pub type InstDataFn = dyn Fn(JsonValue) -> InstDataResult + Sync;
+/// Param Factory Function type.
+pub type ParamDataFn = dyn Fn(JsonValue) -> ParamDataResult + Sync;
 
-/// Instance Factory Item.
+/// Param Factory Item.
 #[derive(Serialize)] //just for display
-pub struct InstFactItem {
+pub struct ParamFactItem {
     /// Factory function.
     #[serde(skip_serializing)]
-    func: Box<InstDataFn>,
+    func: Box<ParamDataFn>,
     /// Description
     desc: String,
     /// Example Argument
     example_args: Option<String>,
 }
 
-impl InstFactItem {
-    pub fn new<D>(func: Box<InstDataFn>, description: D, example_args: Option<String>) -> Self
+impl ParamFactItem {
+    pub fn new<D>(func: Box<ParamDataFn>, description: D, example_args: Option<String>) -> Self
     where
         D: ToString,
     {
@@ -43,7 +43,7 @@ impl InstFactItem {
         }
     }
 
-    pub fn create(&self, args: JsonValue) -> InstDataResult {
+    pub fn create(&self, args: JsonValue) -> ParamDataResult {
         (self.func)(args)
     }
 
@@ -58,14 +58,14 @@ impl InstFactItem {
     }
 }
 
-pub fn create_instance(
+pub fn create_param(
     uuid: &uuid::Uuid,
     type_name: &str,
     args: JsonValue,
-) -> Result<Instance, CreateError> {
-    if let Some((key, f)) = INSTANCE_FACTORY_HASH.get_key_value(type_name) {
+) -> Result<Param, CreateError> {
+    if let Some((key, f)) = PARAM_FACTORY_HASH.get_key_value(type_name) {
         match f.create(args) {
-            Ok((access, map)) => Ok(Instance::new_with_id(key, access, map, uuid)),
+            Ok((access, shadow, map)) => Ok(Param::new_with_id(key, access, map, shadow, uuid)),
             Err(e) => Err(e),
         }
     } else {
@@ -74,7 +74,7 @@ pub fn create_instance(
 }
 
 pub fn help() -> serde_json::Value {
-    serde_json::to_value(&*INSTANCE_FACTORY_HASH).expect("failed to serialize")
+    serde_json::to_value(&*PARAM_FACTORY_HASH).expect("failed to serialize")
 }
 
 //pull in the codegen
