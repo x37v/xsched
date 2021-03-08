@@ -6,6 +6,7 @@ use sched::{
 };
 use std::{
     collections::{hash_map::Keys, HashMap},
+    convert::TryInto,
     sync::Arc,
 };
 
@@ -23,6 +24,7 @@ pub type ParamBindingKeyValueGetSet<T> = ::sched::binding::ParamBindingKeyValueG
     Arc<dyn ::sched::binding::ParamBindingKeyValue<T>>,
 >;
 
+/// A piece of data or operator and its access.
 pub enum ParamDataAccess {
     Get(ParamDataGet),
     Set(ParamDataSet),
@@ -36,22 +38,6 @@ pub enum ParamDataAccess {
 pub trait ParamMapGet {
     /// Get a reference to the parameters for this object.
     fn params(&self) -> &ParamHashMap;
-}
-
-pub trait AsParamGet<T> {
-    fn as_get(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<T>>>;
-}
-
-pub trait AsParamSet<T> {
-    fn as_set(&self) -> Option<::std::sync::Arc<dyn ParamBindingSet<T>>>;
-}
-
-pub trait AsParamKeyValueGet<T> {
-    fn as_key_value_get(&self) -> Option<::std::sync::Arc<dyn ParamBindingKeyValueGet<T>>>;
-}
-
-pub trait AsParamKeyValueSet<T> {
-    fn as_key_value_set(&self) -> Option<::std::sync::Arc<dyn ParamBindingKeyValueSet<T>>>;
 }
 
 /// Parameters with their access.
@@ -324,7 +310,12 @@ mod tests {
         map.insert("left", ParamAccess::new_get(ParamGet::USize(lswap)));
         map.insert("right", ParamAccess::new_get(ParamGet::USize(rswap)));
 
-        let max = Param::new(&"value", max as Arc<dyn ParamBindingGet<usize>>, map, None);
+        let max = Arc::new(Param::new(
+            &"value",
+            max as Arc<dyn ParamBindingGet<usize>>,
+            map,
+            None,
+        ));
         assert_eq!(None, s.params().uuid(&"left"));
         assert_eq!(None, s.params().uuid(&"right"));
         assert_eq!(None, s.params().uuid(&"bill"));
@@ -348,10 +339,10 @@ mod tests {
         assert_eq!("get", max.access_name());
         assert_eq!("usize", max.data_type_name());
 
-        let get_max: Option<Arc<dyn ParamBindingGet<usize>>> = max.as_get();
-        let get_bool: Option<Arc<dyn ParamBindingGet<bool>>> = max.as_get();
-        assert!(get_bool.is_none());
-        assert!(get_max.is_some());
+        let get_max: Result<Arc<dyn ParamBindingGet<usize>>, ()> = max.as_ref().try_into();
+        let get_bool: Result<Arc<dyn ParamBindingGet<bool>>, ()> = max.as_ref().try_into();
+        assert!(get_bool.is_err());
+        assert!(get_max.is_ok());
 
         let get_max = get_max.unwrap();
         assert_eq!(0, get_max.get());
@@ -410,8 +401,9 @@ mod tests {
         assert_eq!(Some(right.uuid()), max.params().uuid(&"right"));
         assert_eq!(2, get_max.get());
 
-        let sleft = AsParamSet::<usize>::as_set(left.as_ref());
-        assert!(sleft.is_some());
+        let sleft: Result<::std::sync::Arc<dyn ParamBindingSet<usize>>, _> =
+            left.as_ref().try_into();
+        assert!(sleft.is_ok());
         sleft.unwrap().set(2084);
         assert_eq!(2084, get_max.get());
     }

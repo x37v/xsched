@@ -133,39 +133,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ename = v.var_name.clone();
 
             param_typed_getters.push(quote! {
-                impl AsParamGet<#t> for Param {
-                    fn as_get(&self) -> Option<::std::sync::Arc<dyn ParamBindingGet<#t>>> {
+                impl std::convert::TryInto<::std::sync::Arc<dyn ParamBindingGet<#t>>> for &Param {
+                    type Error = ();
+                    fn try_into(self) -> Result<::std::sync::Arc<dyn ParamBindingGet<#t>>, ()> {
                         match &self.data {
-                            ParamDataAccess::Get(ParamDataGet::#ename(d)) => Some(d.clone()),
-                            ParamDataAccess::GetSet(ParamDataGetSet::#ename(d)) => Some(d.clone() as _),
-                            _ => None
+                            ParamDataAccess::Get(ParamDataGet::#ename(d)) => Ok(d.clone()),
+                            ParamDataAccess::GetSet(ParamDataGetSet::#ename(d)) => Ok(d.clone() as _),
+                            _ => Err(())
                         }
                     }
                 }
-                impl AsParamSet<#t> for Param {
-                    fn as_set(&self) -> Option<::std::sync::Arc<dyn ParamBindingSet<#t>>> {
+                impl std::convert::TryInto<::std::sync::Arc<dyn ParamBindingSet<#t>>> for &Param {
+                    type Error = ();
+                    fn try_into(self) -> Result<::std::sync::Arc<dyn ParamBindingSet<#t>>, ()> {
                         match &self.data {
-                            ParamDataAccess::Set(ParamDataSet::#ename(d)) => Some(d.clone()),
-                            ParamDataAccess::GetSet(ParamDataGetSet::#ename(d)) => Some(d.clone() as _),
-                            _ => None
+                            ParamDataAccess::Set(ParamDataSet::#ename(d)) => Ok(d.clone()),
+                            ParamDataAccess::GetSet(ParamDataGetSet::#ename(d)) => Ok(d.clone() as _),
+                            _ => Err(())
                         }
                     }
                 }
-                impl AsParamKeyValueGet<#t> for Param {
-                    fn as_key_value_get(&self) -> Option<::std::sync::Arc<dyn ParamBindingKeyValueGet<#t>>> {
+                impl std::convert::TryInto<::std::sync::Arc<dyn ParamBindingKeyValueGet<#t>>> for &Param {
+                    type Error = ();
+                    fn try_into(self) -> Result<::std::sync::Arc<dyn ParamBindingKeyValueGet<#t>>, ()> {
                         match &self.data {
-                            ParamDataAccess::KeyValueGet(ParamDataKeyValueGet::#ename(d)) => Some(d.clone()),
-                            ParamDataAccess::KeyValueGetSet(ParamDataKeyValueGetSet::#ename(d)) => Some(d.clone() as _),
-                            _ => None
+                            ParamDataAccess::KeyValueGet(ParamDataKeyValueGet::#ename(d)) => Ok(d.clone()),
+                            ParamDataAccess::KeyValueGetSet(ParamDataKeyValueGetSet::#ename(d)) => Ok(d.clone() as _),
+                            _ => Err(())
                         }
                     }
                 }
-                impl AsParamKeyValueSet<#t> for Param {
-                    fn as_key_value_set(&self) -> Option<::std::sync::Arc<dyn ParamBindingKeyValueSet<#t>>> {
+                impl std::convert::TryInto<::std::sync::Arc<dyn ParamBindingKeyValueSet<#t>>> for &Param {
+                    type Error = ();
+                    fn try_into(self) -> Result<::std::sync::Arc<dyn ParamBindingKeyValueSet<#t>>, ()> {
                         match &self.data {
-                            ParamDataAccess::KeyValueSet(ParamDataKeyValueSet::#ename(d)) => Some(d.clone()),
-                            ParamDataAccess::KeyValueGetSet(ParamDataKeyValueGetSet::#ename(d)) => Some(d.clone() as _),
-                            _ => None
+                            ParamDataAccess::KeyValueSet(ParamDataKeyValueSet::#ename(d)) => Ok(d.clone()),
+                            ParamDataAccess::KeyValueGetSet(ParamDataKeyValueGetSet::#ename(d)) => Ok(d.clone() as _),
+                            _ => Err(())
                         }
                     }
                 }
@@ -267,7 +271,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             try_bind_variants.push(quote! {
                 ParamAccess::Get { get: ParamGet::#i(p), binding: b } => {
-                    if let Some(g) = binding.as_get() {
+                    if let Ok(g) = binding.as_ref().try_into() {
                         let mut l = b.lock();
                         p.bind(g);
                         l.replace(binding);
@@ -277,7 +281,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 ParamAccess::Set { set: ParamSet::#i(p), binding: b } => {
-                    if let Some(s) = binding.as_set() {
+                    if let Ok(s) = binding.as_ref().try_into() {
                         let mut l = b.lock();
                         p.bind(s);
                         l.replace(binding);
